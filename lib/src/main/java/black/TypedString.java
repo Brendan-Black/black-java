@@ -30,6 +30,6 @@ package black;
  * @see <a href="https://github.com/Brendan-Black/black-java/blob/master/BLACK_JAVA.md#typed-strings-wrap-them">Typed strings: wrap them</a>
  */
 public interface TypedString {
-	/** The validated string, as it goes on the wire. */
+	/** {@return the validated string, as it goes on the wire} */
 	String value();
 }
