@@ -25,8 +25,15 @@ package black;
  * }
  * }</pre>
  *
+ * <p>Implementations are prime candidates for value classes (JEP 401, still in preview) once those are ready: a small,
+ * immutable wrapper is exactly what they're for, and the JVM can then skip the allocation or lay it out flat. Adopting one
+ * should take a single word, {@code value record Sku(...)}, so keep implementations ready for it: a record or final class
+ * with final fields, never used in {@code synchronized}, and never compared with {@code ==}.
+ *
  * <p>For an opaque secret, such as a token, implement this too but give {@code toString()} a redacted form.
  *
  * @see <a href="https://github.com/Brendan-Black/black-java/blob/master/BLACK_JAVA.md#typed-strings-wrap-them">Typed strings: wrap them</a>
+ * @see <a href="https://github.com/Brendan-Black/black-java/blob/master/BLACK_JAVA.md#value-classes">Value classes</a>
+ * @see <a href="https://openjdk.org/jeps/401">JEP 401</a>
  */
 public interface TypedString {}

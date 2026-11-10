@@ -135,7 +135,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.1.1"
+    id("black.java-standards") version "1.1.2"
 }
 ```
 
@@ -190,14 +190,15 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.1.1")
+    implementation("com.github.Brendan-Black.black-java:lib:1.1.2")
 }
 ```
 
 Use `api` instead of `implementation` in a library whose public types implement it.
 
 - **[`black.TypedString`](lib/src/main/java/black/TypedString.java)** marks a type that holds and validates one shaped string.
-  See [*Typed strings: wrap them*](BLACK_JAVA.md#typed-strings-wrap-them).
+  It declares nothing. Implementations are prime candidates for [value classes](BLACK_JAVA.md#value-classes) once those are
+  ready. See [*Typed strings: wrap them*](BLACK_JAVA.md#typed-strings-wrap-them).
 
 ## Warnings
 
