@@ -489,7 +489,7 @@ to hold and validate one shaped value, and "find implementations" on it gives yo
 the system. If you also want one Jackson serializer or JPA `AttributeConverter` to handle them all, give it a
 `String value()` method; a record whose component is named `value` implements it for free.
 
-This repo publishes that interface as `black.TypedString`, in its [`lib` module](README.md#library), so projects can share
+This repo publishes the marker, with nothing in it, as `black.TypedString`, in its [`lib` module](README.md#library), so projects can share
 one definition.
 
 ### On hot paths

@@ -135,7 +135,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.1.0"
+    id("black.java-standards") version "1.1.1"
 }
 ```
 
@@ -190,7 +190,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.1.0")
+    implementation("com.github.Brendan-Black.black-java:lib:1.1.1")
 }
 ```
 
