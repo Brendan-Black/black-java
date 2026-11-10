@@ -1,0 +1,6 @@
+# JitPack builds each tag into com.github.Brendan-Black:black-java:<tag>, the black.java-standards Gradle plugin.
+# Projects map the plugin id to it in settings.gradle.kts (see README.md).
+jdk:
+  - openjdk21
+install:
+  - ./gradlew publishToMavenLocal
