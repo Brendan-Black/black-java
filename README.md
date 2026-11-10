@@ -1,6 +1,7 @@
 # black-java
 
-My Java standards: a style guide, [`BLACK_JAVA.md`](BLACK_JAVA.md), and the tooling below that enforces layout and compiler warnings.
+My Java standards: a style guide, [`BLACK_JAVA.md`](BLACK_JAVA.md), the tooling below that enforces layout and compiler warnings, and a
+small [library](#library) of the types the guide calls for.
 
 ## Formatter
 
@@ -121,7 +122,7 @@ pluginManagement {
     }
     // black.java-standards (formatting and compiler warnings) comes from JitPack, which serves it by its repository's name.
     resolutionStrategy.eachPlugin {
-        if (requested.id.id == "black.java-standards") useModule("com.github.Brendan-Black:black-java:${requested.version}")
+        if (requested.id.id == "black.java-standards") useModule("com.github.Brendan-Black.black-java:plugin:${requested.version}")
     }
     // With https://github.com/Brendan-Black/black-java checked out next to this project, that checkout is used instead.
     if (file("../black-java/settings.gradle.kts").exists()) includeBuild("../black-java")
@@ -134,7 +135,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.0.0"
+    id("black.java-standards") version "1.1.0"
 }
 ```
 
@@ -177,6 +178,26 @@ javaStandards {
 
 `honorSuppressWarnings = false` makes the build stricter than the editor, which still hides what `@SuppressWarnings`
 hides.
+
+## Library
+
+The `lib` module holds what the guide has code implement, so projects share one definition. It depends only on the JDK and
+is compiled for Java 17. JitPack builds it from each tag:
+
+```kotlin
+repositories {
+    maven("https://jitpack.io")
+}
+
+dependencies {
+    implementation("com.github.Brendan-Black.black-java:lib:1.1.0")
+}
+```
+
+Use `api` instead of `implementation` in a library whose public types implement it.
+
+- **[`black.TypedString`](lib/src/main/java/black/TypedString.java)** marks a type that holds and validates one shaped string.
+  See [*Typed strings: wrap them*](BLACK_JAVA.md#typed-strings-wrap-them).
 
 ## Warnings
 

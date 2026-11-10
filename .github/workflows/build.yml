@@ -30,4 +30,4 @@ jobs:
         if: failure()
         with:
           name: test-reports
-          path: build/reports/
+          path: "**/build/reports/"
