@@ -18,6 +18,8 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
  * <li>{@code format}: formats every Java file with the profile;
  * <li>{@code javaWarnings} (and one task per source set, {@code javaWarningsMain}...), run by {@code check}: fails on
  * compiler warnings;
+ * <li>the checks (BLACK_JAVA.md's hard rules, such as no {@code Optional} in a constructor) on every source set's
+ * annotation processor path, so breaking one is a compiler error in {@code compileJava} and {@code javaWarnings} alike;
  * <li>{@code javaStandardsIde}: sets up VS Code with the same profile and warning settings.
  * </ul>
  * Settings: {@link JavaStandardsExtension}.
@@ -42,6 +44,7 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 			t.setDescription("Writes the bundled formatter profile and warning settings to build/java-standards.");
 			t.getProfileText().set(ExtractStandardsTask.bundled(ExtractStandardsTask.PROFILE));
 			t.getWarningsText().set(ExtractStandardsTask.bundled(ExtractStandardsTask.WARNINGS));
+			t.getChecksDigest().set(ExtractStandardsTask.bundledDigest(ExtractStandardsTask.CHECKS));
 			t.getOutputDir().set(project.getLayout().getBuildDirectory().dir("java-standards"));
 		});
 		ext.getFormatterProfile().convention(extract.flatMap(t -> t.getOutputDir().file(ExtractStandardsTask.PROFILE)));
@@ -55,10 +58,10 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 			t.getProjectDir().set(project.getLayout().getProjectDirectory());
 		});
 
-		project.getPluginManager().withPlugin("java", p -> configureJava(project, ext));
+		project.getPluginManager().withPlugin("java", p -> configureJava(project, ext, extract));
 	}
 
-	private static void configureJava(Project project, JavaStandardsExtension ext) {
+	private static void configureJava(Project project, JavaStandardsExtension ext, TaskProvider<ExtractStandardsTask> extract) {
 		var java = project.getExtensions().getByType(JavaPluginExtension.class);
 		var tasks = project.getTasks();
 		Provider<Integer> defaultRelease = project.provider(() -> Integer.valueOf(java.getSourceCompatibility().getMajorVersion()));
@@ -104,7 +107,11 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 		tasks.named("check", t -> t.dependsOn(checkFormat, warnings));
 
 		var toolchains = project.getExtensions().getByType(JavaToolchainService.class);
+		// The hard rules are compiler errors, from annotation processors: on every source set's processor path, javac
+		// (compileJava...) and ECJ (javaWarnings...) both report them. Not optional, so there is no setting.
+		var checks = project.files(extract.flatMap(t -> t.getOutputDir().file(ExtractStandardsTask.CHECKS))).builtBy(extract);
 		java.getSourceSets().configureEach(ss -> {
+			project.getDependencies().add(ss.getAnnotationProcessorConfigurationName(), checks);
 			checkFormat.configure(t -> t.getSources().from(ss.getJava()));
 			format.configure(t -> t.getSources().from(ss.getJava()));
 			var w = tasks.register("javaWarnings" + capitalize(ss.getName()), WarningsTask.class,

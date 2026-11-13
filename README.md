@@ -107,8 +107,9 @@ Checked against JDT 3.48 (VS Code Java extension 1.58):
 ## Gradle plugin
 
 `black.java-standards` makes a project's build enforce both files: `gradle check` fails on code that isn't formatted
-with the profile, and on compiler warnings. The plugin carries its own copies of the two files, so a project gets a
-fixed version of the rules, which only changes when it moves to a newer plugin version.
+with the profile, and on compiler warnings. It also makes the guide's hard rules compiler errors (see [Checks](#checks)).
+The plugin carries its own copies of the two files and the checks, so a project gets a fixed version of the rules, which
+only changes when it moves to a newer plugin version.
 
 ### Adding it
 
@@ -135,7 +136,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.1.2"
+    id("black.java-standards") version "1.2.0"
 }
 ```
 
@@ -179,6 +180,29 @@ javaStandards {
 `honorSuppressWarnings = false` makes the build stricter than the editor, which still hides what `@SuppressWarnings`
 hides.
 
+## Checks
+
+The `checks` module turns the [guide](BLACK_JAVA.md)'s hard rules into compiler errors. They're annotation processors,
+so javac and ECJ both report them. The [Gradle plugin](#gradle-plugin) puts them on every source set's annotation
+processor path, so `compileJava` and `javaWarnings` both fail. They can't be turned off: a rule that can be
+switched off isn't a hard rule.
+
+- **[No `Optional` in a constructor](BLACK_JAVA.md#no-optional-in-a-constructor)**
+  ([`NoOptionalInConstructors`](checks/src/main/java/black/checks/NoOptionalInConstructors.java)): a constructor
+  parameter or record component of type `java.util.Optional` is an error.
+
+Processors aren't shown classes declared inside a method, so a local class or record isn't checked. ECJ (3.46) gives
+no file or line for errors in a record, so the message names the record and the component.
+
+Without the plugin, add it as a processor:
+
+```kotlin
+dependencies {
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.2.0")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.2.0")
+}
+```
+
 ## Library
 
 The `lib` module holds what the guide has code implement, so projects share one definition. It depends only on the JDK and
@@ -190,7 +214,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.1.2")
+    implementation("com.github.Brendan-Black.black-java:lib:1.2.0")
 }
 ```
 

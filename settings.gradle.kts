@@ -1,3 +1,3 @@
 rootProject.name = "black-java"
 
-include("lib", "plugin")
+include("lib", "checks", "plugin")

@@ -27,6 +27,7 @@ Each rule in one line, with its main exception. *Convention* yields to the code 
 | [Final, immutable, package-private by default](#defaults-final-immutable-package-private) | Convention | Loosen when a real reason appears |
 | [Inject through constructors](#inject-through-constructors) | Convention | Genuinely optional dependencies |
 | [Nulls don't cross boundaries you own](#nulls-wrap-them) | Convention | An announced `@Nullable` record field; private helpers |
+| [No `Optional` in a constructor](#no-optional-in-a-constructor) | Correctness | None |
 | [Name magic strings](#magic-strings-name-them) | Convention | Used once, handled in one place, prose, test data |
 | [Wrap typed strings](#typed-strings-wrap-them) | Convention | Free text; strings that never leave a method; strings you built from a template |
 | [`toString()` is debug output](#tostring-for-people-not-pipelines) | Convention | Small, context-free value wrappers |
@@ -78,7 +79,7 @@ doesn't: **if following the local pattern would make your code wrong, insecure, 
 - How narrowly collaborators are declared (*"Code against the least interface"*)
 - Whether interfaces are chained (*"Interfaces: do not chain them"*)
 - How final, mutable, and visible classes are by default, and how dependencies are injected
-- How nulls are represented: `Optional`, annotations, defaults (*"Nulls: wrap them"*)
+- How nulls are represented: `Optional` return types, annotations, defaults (*"Nulls: wrap them"*)
 - How constants are named and grouped (*"Magic strings: name them"*)
 - Which shaped strings get their own type, and how they're mapped at the edges (*"Typed strings: wrap them"*)
 - What `toString()` prints for debugging
@@ -91,6 +92,8 @@ doesn't: **if following the local pattern would make your code wrong, insecure, 
 - **Don't generate HTML (or SQL, or shell) from `toString()` or string concatenation.** That's an injection hole, not
   a style choice.
 - **Don't log secrets or personal data**, directly or through a generated `toString()`.
+- **No `Optional` in a constructor.** An `Optional<Anything>` constructor parameter, record component included, is
+  a three-state value (present, empty, `null`) pretending to be two. No local habit makes that safe.
 - **Leave nothing half-done.** A non-atomic write is a data-corruption bug however common it is nearby.
 - **New tests are self-contained.** A test that passes only when something else happens to be running is flaky, and
   flakiness is a defect. Write *your* new tests this way even if the neighbours aren't, but converting the existing
@@ -133,6 +136,7 @@ a rule, wire it into the build and let it fail, so reviewers can spend their att
 | Exhaustive handling of outcomes | The compiler: a `switch` over a sealed type or enum |
 | Duplicated literals | PMD's `AvoidDuplicateLiterals`, or Sonar's equivalent |
 | Immutability | Error Prone's `@Immutable` check |
+| `Optional` in a constructor | A compiler error, from [this repo's checks](README.md#checks) |
 | Field injection, `Thread.sleep` in tests, package rules | ArchUnit |
 | Injection holes | SpotBugs with Find Security Bugs; template engines that escape by default |
 
@@ -360,11 +364,24 @@ record MyRecord(@Nullable String prop1, String prop2) {
 ```
 
 A nullable record field is fine as long as it says so; sometimes null genuinely is the value someone wants to pass.
-It's safe because the null is announced (`@Nullable`) and readers get a way around it (the `Optional` accessor). Keep
-`Optional` out of the constructor, though. It is a return-type tool, and as a parameter it is one more thing that can
-itself be null. Picture it at scale: `new Address(Optional.empty(), Optional.empty(), Optional.of(city),
-Optional.empty())` at every construction site, every fixture and mapper wrapping and unwrapping, the ceremony burying
-the data, and still nothing stopping a bare `null` passed for one of the `Optional`s.
+It's safe because the null is announced (`@Nullable`) and readers get a way around it (the `Optional` accessor).
+
+### No `Optional` in a constructor
+
+This one is a hard rule, not a convention: **`Optional<Anything>` never appears in a constructor's parameter list.**
+That includes a record's components, since they are its canonical constructor. No exception, and no deference to the
+code around you (see *"Correctness vs convention"*).
+
+`Optional` is a return-type tool. As a parameter it is one more thing that can itself be null, so the "optional" value
+has three states, and the type only admits to two. Picture it at scale: `new Address(Optional.empty(),
+Optional.empty(), Optional.of(city), Optional.empty())` at every construction site, every fixture and mapper wrapping
+and unwrapping, the ceremony burying the data, and still nothing stopping a bare `null` passed for one of the
+`Optional`s.
+
+Take the plain value, announced `@Nullable`, and hand out the `Optional` from an accessor, as `MyRecord` does above.
+
+The build holds this line, not review: [this repo's checks](README.md#checks) make an `Optional` constructor parameter a
+compiler error.
 
 The JDK has no `@Nullable`. If your project has none and doesn't want the dependency, split the constructor where you
 can (one with the dependency, a named factory without it), or use a named default with an `Optional` accessor
