@@ -18,7 +18,7 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
  * <li>{@code format}: formats every Java file with the profile;
  * <li>{@code javaWarnings} (and one task per source set, {@code javaWarningsMain}...), run by {@code check}: fails on
  * compiler warnings;
- * <li>the checks (BLACK_JAVA.md's hard rules, such as no {@code Optional} in a constructor) on every source set's
+ * <li>the checks (the black style guide's hard rules, such as no {@code Optional} in a constructor) on every source set's
  * annotation processor path, so breaking one is a compiler error in {@code compileJava} and {@code javaWarnings} alike;
  * <li>{@code javaStandardsIde}: sets up VS Code with the same profile and warning settings.
  * </ul>

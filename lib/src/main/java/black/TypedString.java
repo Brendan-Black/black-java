@@ -32,8 +32,8 @@ package black;
  *
  * <p>For an opaque secret, such as a token, implement this too but give {@code toString()} a redacted form.
  *
- * @see <a href="https://github.com/Brendan-Black/black-java/blob/master/BLACK_JAVA.md#typed-strings-wrap-them">Typed strings: wrap them</a>
- * @see <a href="https://github.com/Brendan-Black/black-java/blob/master/BLACK_JAVA.md#value-classes">Value classes</a>
+ * @see <a href="https://github.com/Brendan-Black/black/blob/master/values/typed-strings.md">Typed strings: wrap them</a>
+ * @see <a href="https://github.com/Brendan-Black/black-java/blob/master/guide/values/value-classes.md">Value classes</a>
  * @see <a href="https://openjdk.org/jeps/401">JEP 401</a>
  */
 public interface TypedString {}

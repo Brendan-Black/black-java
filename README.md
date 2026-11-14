@@ -1,7 +1,8 @@
 # black-java
 
-My Java standards: a style guide, [`BLACK_JAVA.md`](BLACK_JAVA.md), the tooling below that enforces layout and compiler warnings, and a
-small [library](#library) of the types the guide calls for.
+My Java standards: the tooling below that enforces layout and compiler warnings, a small [library](#library) of the types
+the style guide calls for, and the guide's Java specifics in [`guide/`](guide/INDEX.md). The guide itself is language-agnostic and
+lives in [black](https://github.com/Brendan-Black/black).
 
 ## Formatter
 
@@ -182,12 +183,12 @@ hides.
 
 ## Checks
 
-The `checks` module turns the [guide](BLACK_JAVA.md)'s hard rules into compiler errors. They're annotation processors,
+The `checks` module turns the [guide](https://github.com/Brendan-Black/black/blob/master/INDEX.md)'s hard rules into compiler errors. They're annotation processors,
 so javac and ECJ both report them. The [Gradle plugin](#gradle-plugin) puts them on every source set's annotation
 processor path, so `compileJava` and `javaWarnings` both fail. They can't be turned off: a rule that can be
 switched off isn't a hard rule.
 
-- **[No `Optional` in a constructor](BLACK_JAVA.md#no-optional-in-a-constructor)**
+- **[No `Optional` in a constructor](https://github.com/Brendan-Black/black/blob/master/values/no-optional-in-constructor.md)**
   ([`NoOptionalInConstructors`](checks/src/main/java/black/checks/NoOptionalInConstructors.java)): a constructor
   parameter or record component of type `java.util.Optional` is an error.
 
@@ -221,8 +222,8 @@ dependencies {
 Use `api` instead of `implementation` in a library whose public types implement it.
 
 - **[`black.TypedString`](lib/src/main/java/black/TypedString.java)** marks a type that holds and validates one shaped string.
-  It declares nothing. Implementations are prime candidates for [value classes](BLACK_JAVA.md#value-classes) once those are
-  ready. See [*Typed strings: wrap them*](BLACK_JAVA.md#typed-strings-wrap-them).
+  It declares nothing. Implementations are prime candidates for [value classes](guide/values/value-classes.md) once those are
+  ready. See [*Typed strings: wrap them*](https://github.com/Brendan-Black/black/blob/master/values/typed-strings.md).
 
 ## Warnings
 

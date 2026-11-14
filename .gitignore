@@ -3,3 +3,4 @@ build/
 .kotlin/
 .vscode/
 .claude/settings.local.json
+bin/

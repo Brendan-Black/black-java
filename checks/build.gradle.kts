@@ -1,4 +1,4 @@
-// The compile-time checks: annotation processors that turn BLACK_JAVA.md's hard rules into compiler errors, under
+// The compile-time checks: annotation processors that turn the black style guide's hard rules into compiler errors, under
 // javac and ECJ alike. The black.java-standards plugin bundles this jar and puts it on every source set's processor
 // path; a build without the plugin can add it as an annotationProcessor dependency.
 plugins {

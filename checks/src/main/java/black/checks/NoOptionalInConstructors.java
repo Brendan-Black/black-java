@@ -17,13 +17,13 @@ import javax.tools.Diagnostic;
 
 /**
  * A compiler error for every constructor parameter of type {@code java.util.Optional}, a record's components included
- * (BLACK_JAVA.md, "No Optional in a constructor"). It runs as an annotation processor, so javac and ECJ both report it.
+ * (black style guide, values/no-optional-in-constructor.md). It runs as an annotation processor, so javac and ECJ both report it.
  * It sees every class, interface, enum and record the compiler is given, nested ones included, but not local ones:
  * processors aren't shown what's declared inside a method.
  */
 public final class NoOptionalInConstructors extends AbstractProcessor {
 	private static final String MESSAGE = "Optional in a constructor%s: take the plain value, marked @Nullable, and return the Optional from an"
-		+ " accessor (BLACK_JAVA.md, \"No Optional in a constructor\")";
+		+ " accessor (black style guide, values/no-optional-in-constructor.md)";
 
 	/** Run by the compiler, which finds it by its name in META-INF/services. */
 	public NoOptionalInConstructors() {}
