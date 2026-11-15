@@ -1,6 +1,7 @@
 package black.javastandards;
 
 import java.util.List;
+import java.util.Map;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -16,6 +17,8 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
  * <ul>
  * <li>{@code checkFormat}, run by {@code check}: fails if a Java file isn't formatted with the profile;
  * <li>{@code format}: formats every Java file with the profile;
+ * <li>{@code checkMagicStrings}, run by {@code check}: fails if a string value appears in more than one literal of the main
+ * source set;
  * <li>{@code javaWarnings} (and one task per source set, {@code javaWarningsMain}...), run by {@code check}: fails on
  * compiler warnings;
  * <li>the checks (the black style guide's hard rules, such as no {@code Optional} in a constructor) on every source set's
@@ -37,6 +40,10 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 		ext.getCheckWarnings().convention(true);
 		ext.getFailOn().convention("warning");
 		ext.getHonorSuppressWarnings().convention(true);
+		ext.getMagicStrings().convention("error");
+		ext.getMagicStringsByPackage().convention(Map.of());
+		ext.getMagicStringsElsewhere().convention("ignore");
+		ext.getMagicStringsWhitespace().convention(false);
 		ext.getJdtVersion().convention(JDT_VERSION);
 		ext.getEcjVersion().convention(ECJ_VERSION);
 
@@ -104,7 +111,25 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 			t.setGroup(GROUP);
 			t.setDescription("Fails on compiler warnings in any source set (javaStandards.checkWarnings).");
 		});
-		tasks.named("check", t -> t.dependsOn(checkFormat, warnings));
+		// Only the main source set: test data is the guide's exception.
+		var main = java.getSourceSets().named(SourceSet.MAIN_SOURCE_SET_NAME);
+		var magicStrings = tasks.register("checkMagicStrings", MagicStringsTask.class, t -> {
+			t.setGroup(GROUP);
+			t.setDescription("Fails if a string value appears in more than one literal of the main source set (javaStandards.magicStrings).");
+			t.getSources().from(main.map(ss -> ss.getJava()));
+			t.getSourceLevel().set(mainRelease.map(String::valueOf));
+			t.getLevel().set(ext.getMagicStrings());
+			t.getLevelByPackage().set(ext.getMagicStringsByPackage());
+			t.getElsewhere().set(ext.getMagicStringsElsewhere());
+			t.getWhitespace().set(ext.getMagicStringsWhitespace());
+			t.getBuildDir().set(project.getLayout().getBuildDirectory());
+			t.getParserClasspath().from(jdt);
+			t.getBaseDir().set(project.getLayout().getProjectDirectory());
+			String ignore = MagicStringsAction.Level.IGNORE.word;
+			t.onlyIf("javaStandards.magicStrings and every magicStringsByPackage level aren't \"" + ignore + "\"",
+				x -> !ignore.equals(ext.getMagicStrings().get()) || ext.getMagicStringsByPackage().get().values().stream().anyMatch(v -> !ignore.equals(v)));
+		});
+		tasks.named("check", t -> t.dependsOn(checkFormat, warnings, magicStrings));
 
 		var toolchains = project.getExtensions().getByType(JavaToolchainService.class);
 		// The hard rules are compiler errors, from annotation processors: on every source set's processor path, javac

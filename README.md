@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.2.0"
+    id("black.java-standards") version "1.3.0"
 }
 ```
 
@@ -151,6 +151,7 @@ the checkout, whatever version it names. CI and JitPack don't have the checkout,
 | `checkFormat` | Fails if a Java file isn't formatted with the profile, and lists the files. Run by `check`. |
 | `format` | Formats every Java file with the profile, keeping each file's line endings. |
 | `javaWarnings` | Compiles every source set with ECJ, writing nothing, and fails on compiler warnings. Run by `check`. Each source set also has its own task: `javaWarningsMain`, `javaWarningsTest`. |
+| `checkMagicStrings` | Fails if a string value is repeated in the main source set and passed as an argument: see [Magic strings](#magic-strings). Run by `check`. |
 | `javaStandardsIde` | Sets up VS Code to match: copies both files into `.vscode/`, and creates `.vscode/settings.json` pointing at them, or lists what to change in an existing one. |
 
 The profile never takes away a line break, so `checkFormat` doesn't impose a layout: it only checks that a file is
@@ -171,6 +172,10 @@ javaStandards {
     checkWarnings = false          // check doesn't fail on compiler warnings (default true)
     failOn = "info"                // the least severe compiler problem that fails: "error", "warning" (default) or "info"
     honorSuppressWarnings = false  // also count what @SuppressWarnings hides (default true)
+    magicStrings = "warning"       // values repeated as arguments only warn: "error" (default), "warning" or "ignore"
+    magicStringsByPackage = mapOf("com.example.legacy" to "ignore")  // the same, for a package and those below it
+    magicStringsElsewhere = "warning" // the most a value that is never an argument can be: "ignore" (default), "warning" or "error"
+    magicStringsWhitespace = true  // also check values with whitespace in them (default false)
     formatterProfile = file("my-formatter.xml")  // instead of the plugin's java-formatter.xml
     warningSettings = file("my-warnings.prefs")  // instead of the plugin's java-warnings.prefs
     jdtVersion = "3.47.0"          // org.eclipse.jdt:org.eclipse.jdt.core, which formats
@@ -180,6 +185,49 @@ javaStandards {
 
 `honorSuppressWarnings = false` makes the build stricter than the editor, which still hides what `@SuppressWarnings`
 hides.
+
+## Magic strings
+
+`checkMagicStrings`, run by `check`, reports every string value that appears in two literals of the main source set,
+and every place it appears, by the definition in the guide's
+[name magic strings](https://github.com/Brendan-Black/black/blob/master/values/magic-strings.md#what-the-build-checks).
+Name it, with a `static final` constant or an enum, and the literal appears once. It reads syntax only, through JDT, so
+it needs no compiled classes, and sees the whole source set at once.
+
+Only identical values match: `"orderId"` matches `"orderId"` and nothing else, not `"orderid"` or
+`"orderIdList"`. Escapes are resolved first, so `"\101"` matches `"A"`, and a text block matches a plain
+literal with the same value.
+
+| A repeated value… | Is |
+|---|---|
+| passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error |
+| never an argument: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
+| only ever in `static final` fields (any interface field) and enum constants' arguments | not reported |
+
+Java specifics: a literal is an argument when it is passed straight to a method or constructor, or inside parentheses
+or an array initializer there, or is the receiver of `equals`, `equalsIgnoreCase`, `contentEquals` or `compareTo`. Not
+counted: messages (the arguments of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`,
+`lifecycle`, `quiet`, `print`, `println`, `printf`, `format`, `formatted` and `requireNonNull`, of a constructor whose
+type ends in `Exception` or `Error`, and an `assert`'s message); values with no letter; values with whitespace in them;
+annotations; files under the build directory, annotated `@Generated`, or whose opening comment has a line starting
+`@generated`; and every source set but `main`, so tests aren't checked.
+
+Labels aren't counted either: a literal passed straight to a parameter of the source set's own methods or constructors
+that only reaches a message, like `check("JSON", token)` where `check` only puts it in an exception. Without types, a
+method matches a call by name and number of arguments, and a constructor by its type's simple name; a parameter that is
+used any other way, or goes through a call that isn't known to take a message (`log.info(gson.toJson(item))`), is a
+value.
+
+Four settings change it (see [Settings](#settings)):
+
+- **`magicStrings`**: the level for values passed as arguments, `"error"` (the default), `"warning"` or `"ignore"`.
+- **`magicStringsByPackage`**: the same, for one package and the packages below it. The longest matching package wins.
+  A value repeated across packages takes the most severe of their levels; literals in an `"ignore"` package aren't
+  counted at all.
+- **`magicStringsElsewhere`**: the most a value that is never an argument can be, `"ignore"` (the default, which
+  checks arguments only), `"warning"` or `"error"`.
+- **`magicStringsWhitespace`**: `true` also checks values with whitespace in them (a space, a tab, a newline). Off by
+  default: keys, headers and flags have none, so such a value is almost always text for people.
 
 ## Checks
 
@@ -199,8 +247,8 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.2.0")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.2.0")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.0")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.0")
 }
 ```
 
@@ -215,7 +263,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.2.0")
+    implementation("com.github.Brendan-Black.black-java:lib:1.3.0")
 }
 ```
 

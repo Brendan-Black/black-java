@@ -1,6 +1,7 @@
 package black.javastandards;
 
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 
 /**
@@ -12,6 +13,10 @@ import org.gradle.api.provider.Property;
  *     checkWarnings = false        // don't fail check on compiler warnings (default true)
  *     failOn = "info"              // the least severe compiler problem that fails: "error", "warning" (default), "info"
  *     honorSuppressWarnings = false // also count what @SuppressWarnings hides (default true)
+ *     magicStrings = "warning"     // repeated string literals: "error" (default), "warning", "ignore"
+ *     magicStringsByPackage = mapOf("com.example.legacy" to "ignore") // the same, for a package and those below it
+ *     magicStringsElsewhere = "warning" // a value that is never an argument: "ignore" (default), "warning", "error"
+ *     magicStringsWhitespace = true // also check values with whitespace in them (default false)
  *     formatterProfile = file("my-formatter.xml") // instead of the bundled java-formatter.xml
  *     warningSettings = file("my-warnings.prefs") // instead of the bundled java-warnings.prefs
  * }
@@ -29,6 +34,32 @@ public abstract class JavaStandardsExtension {
 
 	/** Whether problems hidden by {@code @SuppressWarnings} stay hidden. */
 	public abstract Property<Boolean> getHonorSuppressWarnings();
+
+	/**
+	 * What {@code checkMagicStrings} does with a string value repeated in the main source set: "error" (the default) fails
+	 * {@code check}, "warning" only reports, "ignore" doesn't look.
+	 */
+	public abstract Property<String> getMagicStrings();
+
+	/**
+	 * {@link #getMagicStrings()} for a package and the packages below it, keyed by package name:
+	 * {@code magicStringsByPackage = mapOf("com.example.legacy" to "warning")}. The longest matching name wins. A value
+	 * repeated across packages takes the most severe of their levels; a package set to "ignore" isn't counted at all.
+	 */
+	public abstract MapProperty<String, String> getMagicStringsByPackage();
+
+	/**
+	 * The most severe a repeated value can be when none of its literals is an argument to a method or constructor (when they
+	 * are all assignments, returns, {@code case} labels and the like): "ignore" (the default), "warning" or "error". Arguments
+	 * are the pattern the check is for; the rest is reported only if a project asks.
+	 */
+	public abstract Property<String> getMagicStringsElsewhere();
+
+	/**
+	 * Whether a value with whitespace in it (a space, a tab, a newline) is checked. False by default: keys, headers and flags have
+	 * none, so such a value is almost always text for people.
+	 */
+	public abstract Property<Boolean> getMagicStringsWhitespace();
 
 	/** The Eclipse formatter profile. Default: the java-formatter.xml bundled with the plugin. */
 	public abstract RegularFileProperty getFormatterProfile();
