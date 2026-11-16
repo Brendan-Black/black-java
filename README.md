@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.3.0"
+    id("black.java-standards") version "1.3.1"
 }
 ```
 
@@ -176,6 +176,7 @@ javaStandards {
     magicStringsByPackage = mapOf("com.example.legacy" to "ignore")  // the same, for a package and those below it
     magicStringsElsewhere = "warning" // the most a value that is never an argument can be: "ignore" (default), "warning" or "error"
     magicStringsWhitespace = true  // also check values with whitespace in them (default false)
+    magicStringsProximity = 3      // lines a value's literals can span and be read together: 0 (default); -1 file, -2 package, -3 module
     formatterProfile = file("my-formatter.xml")  // instead of the plugin's java-formatter.xml
     warningSettings = file("my-warnings.prefs")  // instead of the plugin's java-warnings.prefs
     jdtVersion = "3.47.0"          // org.eclipse.jdt:org.eclipse.jdt.core, which formats
@@ -201,12 +202,18 @@ literal with the same value.
 | A repeated value… | Is |
 |---|---|
 | passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error |
+| passed as an argument once, every other use in other files or in that same method | a warning: most likely another concept that shares the spelling, such as one flag in two commands' parsers |
+| only ever in one method, with at most one of its literals an argument (`startsWith("--x=")` beside a `case "--x="`) | not reported: read together, changed together. Two arguments in one method (declaring a flag and looking it up) are still an error |
+| all within `magicStringsProximity` of each other, with no constant among them: on one line, by default (`startsWith("--author")` and `value("--author")`) | not reported: read together, however many are arguments |
 | never an argument: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
 | only ever in `static final` fields (any interface field) and enum constants' arguments | not reported |
 
 Java specifics: a literal is an argument when it is passed straight to a method or constructor, or inside parentheses
-or an array initializer there, or is the receiver of `equals`, `equalsIgnoreCase`, `contentEquals` or `compareTo`. Not
-counted: messages (the arguments of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`,
+or an array initializer there, or is the receiver of `equals`, `equalsIgnoreCase`, `contentEquals` or `compareTo`. A
+literal that a value is built from, `Optional.of("x")`, `Optional.ofNullable("x")` or `new R("x")` for a record `R` of
+the source set, is an argument only if that value is passed on: `return Optional.of("hard")` is not one. A method is
+any method, constructor or initializer, and a literal in a field belongs to that field. Not counted: messages (the
+arguments of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`,
 `lifecycle`, `quiet`, `print`, `println`, `printf`, `format`, `formatted` and `requireNonNull`, of a constructor whose
 type ends in `Exception` or `Error`, and an `assert`'s message); values with no letter; values with whitespace in them;
 annotations; files under the build directory, annotated `@Generated`, or whose opening comment has a line starting
@@ -218,7 +225,7 @@ method matches a call by name and number of arguments, and a constructor by its 
 used any other way, or goes through a call that isn't known to take a message (`log.info(gson.toJson(item))`), is a
 value.
 
-Four settings change it (see [Settings](#settings)):
+Five settings change it (see [Settings](#settings)):
 
 - **`magicStrings`**: the level for values passed as arguments, `"error"` (the default), `"warning"` or `"ignore"`.
 - **`magicStringsByPackage`**: the same, for one package and the packages below it. The longest matching package wins.
@@ -228,6 +235,10 @@ Four settings change it (see [Settings](#settings)):
   checks arguments only), `"warning"` or `"error"`.
 - **`magicStringsWhitespace`**: `true` also checks values with whitespace in them (a space, a tab, a newline). Off by
   default: keys, headers and flags have none, so such a value is almost always text for people.
+- **`magicStringsProximity`**: how close a value's literals must all be to be read together, and so not reported,
+  however many are arguments: a number of lines (`0`, the default, is one line; `3` is within three lines of each
+  other, in one file), `-1` one file, `-2` one package, or `-3` the module (the whole source set), which reports nothing.
+  A constant among them is never close: a constant plus a literal should use the constant.
 
 ## Checks
 
@@ -247,8 +258,8 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.0")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.0")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.1")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.1")
 }
 ```
 
@@ -263,7 +274,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.3.0")
+    implementation("com.github.Brendan-Black.black-java:lib:1.3.1")
 }
 ```
 

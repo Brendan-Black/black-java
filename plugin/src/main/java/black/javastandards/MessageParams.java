@@ -140,17 +140,22 @@ final class MessageParams {
 	private boolean[] messageOnly(Declaration d) {
 		Set<String> names = new HashSet<>(d.params());
 		Set<String> outside = new HashSet<>();
+		// A parameter that is never used isn't a message either: nothing shows what it is for.
+		Set<String> used = new HashSet<>();
 		d.body().accept(new ASTVisitor() {
 			@Override
 			public boolean visit(SimpleName node) {
 				String id = node.getIdentifier();
-				if (names.contains(id) && isReference(node) && !inMessage(node, d)) { outside.add(id); }
+				if (!names.contains(id) || !isReference(node)) { return false; }
+				used.add(id);
+				if (!inMessage(node, d)) { outside.add(id); }
 				return false;
 			}
 		});
 		boolean[] flags = new boolean[d.params().size()];
 		for (int i = 0; i < flags.length; i++) {
-			flags[i] = !outside.contains(d.params().get(i));
+			String name = d.params().get(i);
+			flags[i] = used.contains(name) && !outside.contains(name);
 		}
 		return flags;
 	}

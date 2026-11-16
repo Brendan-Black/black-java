@@ -44,6 +44,7 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 		ext.getMagicStringsByPackage().convention(Map.of());
 		ext.getMagicStringsElsewhere().convention("ignore");
 		ext.getMagicStringsWhitespace().convention(false);
+		ext.getMagicStringsProximity().convention(0);
 		ext.getJdtVersion().convention(JDT_VERSION);
 		ext.getEcjVersion().convention(ECJ_VERSION);
 
@@ -122,6 +123,7 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 			t.getLevelByPackage().set(ext.getMagicStringsByPackage());
 			t.getElsewhere().set(ext.getMagicStringsElsewhere());
 			t.getWhitespace().set(ext.getMagicStringsWhitespace());
+			t.getProximity().set(ext.getMagicStringsProximity());
 			t.getBuildDir().set(project.getLayout().getBuildDirectory());
 			t.getParserClasspath().from(jdt);
 			t.getBaseDir().set(project.getLayout().getProjectDirectory());

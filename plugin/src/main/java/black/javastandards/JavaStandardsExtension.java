@@ -17,6 +17,7 @@ import org.gradle.api.provider.Property;
  *     magicStringsByPackage = mapOf("com.example.legacy" to "ignore") // the same, for a package and those below it
  *     magicStringsElsewhere = "warning" // a value that is never an argument: "ignore" (default), "warning", "error"
  *     magicStringsWhitespace = true // also check values with whitespace in them (default false)
+ *     magicStringsProximity = 3     // lines a value's literals can span and be read together: 0 (default); -1 file, -2 package, -3 module
  *     formatterProfile = file("my-formatter.xml") // instead of the bundled java-formatter.xml
  *     warningSettings = file("my-warnings.prefs") // instead of the bundled java-warnings.prefs
  * }
@@ -60,6 +61,13 @@ public abstract class JavaStandardsExtension {
 	 * none, so such a value is almost always text for people.
 	 */
 	public abstract Property<Boolean> getMagicStringsWhitespace();
+
+	/**
+	 * How close a value's literals must all be to be read together, and so not reported, however many are arguments: a
+	 * number of lines (0, the default, is one line; 3 is within three lines of each other, in one file), -1 one file, -2 one
+	 * package, or -3 the module (the whole source set), which reports nothing. A constant among them is never close.
+	 */
+	public abstract Property<Integer> getMagicStringsProximity();
 
 	/** The Eclipse formatter profile. Default: the java-formatter.xml bundled with the plugin. */
 	public abstract RegularFileProperty getFormatterProfile();
