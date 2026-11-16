@@ -55,6 +55,7 @@ import org.eclipse.jdt.core.dom.SuperMethodInvocation;
 import org.eclipse.jdt.core.dom.SwitchCase;
 import org.eclipse.jdt.core.dom.TextBlock;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
@@ -239,13 +240,17 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				// One method's literals, with at most one of them an argument, are read together and change together: a
 				// parser's startsWith("--x=") beside its case "--x=". Two arguments (declaring a flag and looking it up) are the
 				// typo the rule is for.
-				boolean defined = places.stream().anyMatch(place -> place.kind() == Kind.DEFINITION);
-				if (arguments <= 1 && !defined && places.stream().allMatch(place -> place.scope() == places.get(0).scope())) { return; }
+				// A constant the literals could name is always the full level: a constant plus a literal should use the constant.
+				// One they couldn't (a private one of another class) says nothing about them, so it plays no part in what follows.
+				boolean defined = usableConstant(places);
+				List<Place> literals = places.stream().filter(place -> place.kind() != Kind.DEFINITION).toList();
+				if (!defined && literals.size() < 2) { return; }
+				if (arguments <= 1 && !defined && literals.stream().allMatch(place -> place.scope() == literals.get(0).scope())) { return; }
 				// Literals this close, however many are arguments, are read together: a case's startsWith("--x") and its
 				// value("--x"). Not with a constant among them: a constant plus a literal should use the constant. A value across
 				// packages takes the narrowest proximity and the most severe levels among them.
 				var proximity = places.stream().map(place -> place.settings().proximity()).min(Enum::compareTo).orElseThrow();
-				if (!defined && close(places, proximity)) { return; }
+				if (!defined && close(literals, proximity)) { return; }
 				Level asArgument = places.stream().map(place -> place.settings().level()).min(Enum::compareTo).orElseThrow();
 				Level level = asArgument;
 				if (arguments == 0) {
@@ -606,9 +611,14 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				Kind kind = definitions > 0 ? Kind.DEFINITION : arguments.contains(node) ? Kind.ARGUMENT : Kind.ELSEWHERE;
 				int offset = node.getStartPosition();
 				String where = name + ":" + cu.getLineNumber(offset) + ":" + (cu.getColumnNumber(offset) + 1);
-				seen.computeIfAbsent(value, v -> new ArrayList<>()).add(new Place(name, pkg, where, settings, kind, scope, unit, kind == Kind.DEFINITION ? reach : null));
+				seen.computeIfAbsent(value, v -> new ArrayList<>()).add(new Place(name, pkg, where, settings, kind, scope, unit, named(kind, node) ? reach : null));
 			}
 			return false;
+		}
+
+		/** Whether a definition is a name for this string: the literal is the field's whole value, not an entry of a {@code Set.of}. */
+		private static boolean named(Kind kind, ASTNode node) {
+			return kind == Kind.DEFINITION && node.getParent() instanceof VariableDeclarationFragment;
 		}
 
 		/** A constant field's reach: an interface's, a public or a protected one's is anywhere. */
