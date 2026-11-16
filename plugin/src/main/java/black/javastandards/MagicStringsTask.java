@@ -54,9 +54,9 @@ public abstract class MagicStringsTask extends DefaultTask {
 	@Input
 	public abstract Property<Boolean> getWhitespace();
 
-	/** Lines a value's literals can span and be read together, or -1 one file, -2 one package, -3 the module. */
+	/** How close a value's literals must all be to be read together: "statement", "method", "file", "package" or "module". */
 	@Input
-	public abstract Property<Integer> getProximity();
+	public abstract Property<String> getProximity();
 
 	/** Generated sources live here, so files under it aren't read. */
 	@Internal
@@ -78,10 +78,7 @@ public abstract class MagicStringsTask extends DefaultTask {
 		MagicStringsAction.Level.parse(getLevel().get());
 		getLevelByPackage().get().values().forEach(MagicStringsAction.Level::parse);
 		MagicStringsAction.Level.parse(getElsewhere().get());
-		if (getProximity().get() < MagicStringsAction.WIDEST_PROXIMITY) {
-			throw new IllegalArgumentException("javaStandards.magicStringsProximity is " + getProximity().get()
-				+ "; expected a number of lines (0 or more), -1, -2 or -3");
-		}
+		MagicStringsPolicy.Proximity.parse(getProximity().get());
 
 		File report = new File(getTemporaryDir(), "report.txt");
 		Files.deleteIfExists(report.toPath());

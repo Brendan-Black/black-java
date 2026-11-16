@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.3.1"
+    id("black.java-standards") version "1.3.2"
 }
 ```
 
@@ -176,7 +176,7 @@ javaStandards {
     magicStringsByPackage = mapOf("com.example.legacy" to "ignore")  // the same, for a package and those below it
     magicStringsElsewhere = "warning" // the most a value that is never an argument can be: "ignore" (default), "warning" or "error"
     magicStringsWhitespace = true  // also check values with whitespace in them (default false)
-    magicStringsProximity = 3      // lines a value's literals can span and be read together: 0 (default); -1 file, -2 package, -3 module
+    magicStringsProximity = "file" // how close literals must be to be read together: "statement" (default), "method", "file", "package", "module"
     formatterProfile = file("my-formatter.xml")  // instead of the plugin's java-formatter.xml
     warningSettings = file("my-warnings.prefs")  // instead of the plugin's java-warnings.prefs
     jdtVersion = "3.47.0"          // org.eclipse.jdt:org.eclipse.jdt.core, which formats
@@ -204,7 +204,7 @@ literal with the same value.
 | passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error |
 | passed as an argument once, every other use in other files or in that same method | a warning: most likely another concept that shares the spelling, such as one flag in two commands' parsers |
 | only ever in one method, with at most one of its literals an argument (`startsWith("--x=")` beside a `case "--x="`) | not reported: read together, changed together. Two arguments in one method (declaring a flag and looking it up) are still an error |
-| all within `magicStringsProximity` of each other, with no constant among them: on one line, by default (`startsWith("--author")` and `value("--author")`) | not reported: read together, however many are arguments |
+| all within `magicStringsProximity` of each other, with no constant among them: in one statement, by default (`case "--author" -> value("--author")`, however it is wrapped) | not reported: read together, however many are arguments |
 | never an argument: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
 | only ever in `static final` fields (any interface field) and enum constants' arguments | not reported |
 
@@ -215,7 +215,7 @@ the source set, is an argument only if that value is passed on: `return Optional
 any method, constructor or initializer, and a literal in a field belongs to that field. Not counted: messages (the
 arguments of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`,
 `lifecycle`, `quiet`, `print`, `println`, `printf`, `format`, `formatted` and `requireNonNull`, of a constructor whose
-type ends in `Exception` or `Error`, and an `assert`'s message); values with no letter; values with whitespace in them;
+type ends in `Exception` or `Error`, and an `assert`'s message); values with no letter (a backslash and the letter after it, `"\\t"`, is an escape spelled out); values with whitespace in them;
 annotations; files under the build directory, annotated `@Generated`, or whose opening comment has a line starting
 `@generated`; and every source set but `main`, so tests aren't checked.
 
@@ -236,9 +236,31 @@ Five settings change it (see [Settings](#settings)):
 - **`magicStringsWhitespace`**: `true` also checks values with whitespace in them (a space, a tab, a newline). Off by
   default: keys, headers and flags have none, so such a value is almost always text for people.
 - **`magicStringsProximity`**: how close a value's literals must all be to be read together, and so not reported,
-  however many are arguments: a number of lines (`0`, the default, is one line; `3` is within three lines of each
-  other, in one file), `-1` one file, `-2` one package, or `-3` the module (the whole source set), which reports nothing.
-  A constant among them is never close: a constant plus a literal should use the constant.
+  however many are arguments. A constant among them is never close: a constant plus a literal should use the constant.
+
+| Proximity | Literals are close when they are all in |
+|---|---|
+| `"statement"` (default) | one statement, or one branch's head and the first statement it leads to: a `case`'s labels, an `if`'s condition. Line breaks don't matter, and a later statement in the branch is a statement of its own |
+| `"method"` | one method, constructor, initializer or field |
+| `"file"` | one file |
+| `"package"` | one package |
+| `"module"` | the whole source set: nothing is reported |
+
+A package, and the packages inside it, can set all four for itself in its `package-info.java`, and the whole module in
+`module-info.java`, with `black.MagicStrings` from `lib` (a source-only annotation: add `lib` as `compileOnly` if nothing
+else uses it). Anything left at `INHERIT` comes from the package above, then the module, then the build script; the
+longest package name wins, and at the same name `package-info.java` wins over `magicStringsByPackage`. A value across
+packages takes the most severe level and the narrowest proximity among them.
+
+```java
+@MagicStrings(level = MagicStrings.Level.WARNING, proximity = MagicStrings.Proximity.FILE)
+package com.example.cli;
+
+import black.MagicStrings;
+```
+
+Each finding lists first the places that make it its level: for a value passed as an argument, its arguments and the
+other uses in their files. Uses in files with no argument follow on one line, by file.
 
 ## Checks
 
@@ -258,8 +280,8 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.1")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.1")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.2")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.2")
 }
 ```
 
@@ -274,7 +296,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.3.1")
+    implementation("com.github.Brendan-Black.black-java:lib:1.3.2")
 }
 ```
 

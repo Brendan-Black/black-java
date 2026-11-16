@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -27,12 +28,14 @@ import org.eclipse.jdt.core.dom.Annotation;
 import org.eclipse.jdt.core.dom.ArrayCreation;
 import org.eclipse.jdt.core.dom.ArrayInitializer;
 import org.eclipse.jdt.core.dom.AssertStatement;
+import org.eclipse.jdt.core.dom.Block;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.ConstructorInvocation;
 import org.eclipse.jdt.core.dom.EnumConstantDeclaration;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
+import org.eclipse.jdt.core.dom.IfStatement;
 import org.eclipse.jdt.core.dom.Initializer;
 import org.eclipse.jdt.core.dom.MarkerAnnotation;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
@@ -45,9 +48,11 @@ import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.RecordDeclaration;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SingleMemberAnnotation;
+import org.eclipse.jdt.core.dom.Statement;
 import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.SuperConstructorInvocation;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
+import org.eclipse.jdt.core.dom.SwitchCase;
 import org.eclipse.jdt.core.dom.TextBlock;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -105,8 +110,8 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		/** Whether values with whitespace in them are counted. */
 		Property<Boolean> getWhitespace();
 
-		/** Lines a value's literals can span and be read together, or one of the widest: see {@link #WIDEST_PROXIMITY}. */
-		Property<Integer> getProximity();
+		/** How close a value's literals must all be to be read together: see {@link MagicStringsPolicy.Proximity}. */
+		Property<String> getProximity();
 
 		/** Files under it are generated, so not read. */
 		DirectoryProperty getBuildDir();
@@ -153,31 +158,29 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		ARGUMENT, DEFINITION, ELSEWHERE
 	}
 
-	/** A literal: its file, where in it, its package's level, its kind, and the method (or other member) it is in. */
-	private record Place(String file, String pkg, int line, String where, Level level, Kind kind, int scope) {}
+	/**
+	 * A literal: its file and package, where in the file, its package's settings, its kind, and the member (method, field)
+	 * and the unit (statement, or branch head with its first statement) it is in.
+	 */
+	private record Place(String file, String pkg, String where, MagicStringsPolicy.Resolved settings, Kind kind, int scope, int unit) {}
 
-	/** {@code magicStringsProximity}: -1 is one file, -2 one package, -3 the module, which is the whole source set. */
-	static final int SAME_FILE = -1, SAME_PACKAGE = -2, WIDEST_PROXIMITY = -3;
-
-	/** Whether a value's literals are all this close: within this many lines in one file, or in one file, package or module. */
-	private static boolean close(List<Place> places, int proximity) {
+	/** Whether a value's literals are all this close. */
+	private static boolean close(List<Place> places, MagicStringsPolicy.Proximity proximity) {
 		Place first = places.get(0);
-		boolean sameFile = places.stream().allMatch(place -> place.file().equals(first.file()));
 		return switch (proximity) {
-			case SAME_FILE -> sameFile;
-			case SAME_PACKAGE -> places.stream().allMatch(place -> place.pkg().equals(first.pkg()));
-			case WIDEST_PROXIMITY -> true;
-			default -> sameFile
-				&& places.stream().mapToInt(Place::line).max().orElseThrow() - places.stream().mapToInt(Place::line).min().orElseThrow() <= proximity;
+			case STATEMENT -> places.stream().allMatch(place -> place.unit() == first.unit());
+			case METHOD -> places.stream().allMatch(place -> place.scope() == first.scope());
+			case FILE -> places.stream().allMatch(place -> place.file().equals(first.file()));
+			case PACKAGE -> places.stream().allMatch(place -> place.pkg().equals(first.pkg()));
+			case MODULE -> true;
 		};
 	}
 
 	@Override
 	public void execute() {
 		Parameters p = getParameters();
-		Level fallback = Level.parse(p.getLevel().get());
-		Level elsewhere = Level.parse(p.getElsewhere().get());
-		int proximity = p.getProximity().get();
+		var project = new MagicStringsPolicy.Settings(Level.parse(p.getLevel().get()), Level.parse(p.getElsewhere().get()), p.getWhitespace().get(),
+			MagicStringsPolicy.Proximity.parse(p.getProximity().get()));
 		Map<String, Level> byPackage = new TreeMap<>();
 		p.getLevelByPackage().get().forEach((pkg, level) -> byPackage.put(pkg, Level.parse(level)));
 		Path base = p.getBaseDir().get().getAsFile().toPath();
@@ -190,18 +193,21 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				if (!file.getName().endsWith(".java") || file.toPath().startsWith(build)) { continue; }
 				String src = Files.readString(file.toPath());
 				if (opensWithGeneratedMarker(src)) { continue; }
-				CompilationUnit cu = parse(src, p.getSourceLevel().get());
+				CompilationUnit cu = parse(src, p.getSourceLevel().get(), file.getName());
 				if (!isAnnotatedGenerated(cu)) { units.put(file, cu); }
 			}
 			MessageParams messages = MessageParams.of(List.copyOf(units.values()));
+			Map<String, CompilationUnit> byName = new TreeMap<>();
+			units.forEach((file, cu) -> byName.put(base.relativize(file.toPath()).toString(), cu));
+			MagicStringsPolicy policy = MagicStringsPolicy.of(project, byPackage, byName);
 			Set<String> records = recordNames(units.values());
 			int[] scopes = {0};
 			for (Map.Entry<File, CompilationUnit> unit : units.entrySet()) {
 				CompilationUnit cu = unit.getValue();
 				String pkg = cu.getPackage() == null ? "" : cu.getPackage().getName().getFullyQualifiedName();
-				Level level = levelFor(pkg, byPackage, fallback);
-				if (level == Level.IGNORE) { continue; }
-				cu.accept(new Finder(cu, base.relativize(unit.getKey().toPath()).toString(), level, p.getWhitespace().get(), messages, records, scopes, seen));
+				MagicStringsPolicy.Resolved settings = policy.resolve(pkg);
+				if (settings.level() == Level.IGNORE) { continue; }
+				cu.accept(new Finder(cu, base.relativize(unit.getKey().toPath()).toString(), settings, messages, records, scopes, seen));
 			}
 			List<String> report = new ArrayList<>();
 			seen.forEach((value, places) -> {
@@ -212,11 +218,13 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				// parser's startsWith("--x=") beside its case "--x=". Two arguments (declaring a flag and looking it up) are the
 				// typo the rule is for.
 				if (arguments <= 1 && places.stream().allMatch(place -> place.scope() == places.get(0).scope())) { return; }
-				// Literals this close, however many are arguments, are read together: startsWith("--x") and value("--x") on one
-				// line. Not with a constant among them: a constant plus a literal should use the constant.
+				// Literals this close, however many are arguments, are read together: a case's startsWith("--x") and its
+				// value("--x"). Not with a constant among them: a constant plus a literal should use the constant. A value across
+				// packages takes the narrowest proximity and the most severe levels among them.
+				var proximity = places.stream().map(place -> place.settings().proximity()).min(Enum::compareTo).orElseThrow();
 				if (places.stream().noneMatch(place -> place.kind() == Kind.DEFINITION) && close(places, proximity)) { return; }
-				Level level = places.stream().map(Place::level).min(Enum::compareTo).orElseThrow();
-				if (arguments == 0) { level = Level.leastSevere(level, elsewhere); }
+				Level level = places.stream().map(place -> place.settings().level()).min(Enum::compareTo).orElseThrow();
+				if (arguments == 0) { level = places.stream().map(place -> place.settings().elsewhere()).min(Enum::compareTo).orElseThrow(); }
 				// One argument, every other use in another file or in its own method: most likely another concept that shares
 				// the spelling, such as one flag in two commands' parsers, so at most a warning.
 				if (arguments == 1) {
@@ -228,7 +236,23 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				if (level == Level.IGNORE) { return; }
 				report.add(level.word + "\tmagic string " + quote(value) + " appears " + places.size() + " times, " + arguments
 					+ " as an argument: name it (black style guide, values/magic-strings.md)");
-				places.forEach(place -> report.add("\t" + place.where() + " (" + place.kind().name().toLowerCase(java.util.Locale.ROOT) + ")"));
+				// First the places that make it this level: the arguments and the other uses in their files. Uses in files with no
+				// argument follow, by file.
+				Set<String> argumentFiles = new HashSet<>();
+				passed.forEach(place -> argumentFiles.add(place.file()));
+				Map<String, Integer> rest = new TreeMap<>();
+				for (Place place : places) {
+					if (arguments == 0 || argumentFiles.contains(place.file())) {
+						report.add("\t" + place.where() + " (" + place.kind().name().toLowerCase(Locale.ROOT) + ")");
+					} else {
+						rest.merge(place.file(), 1, Integer::sum);
+					}
+				}
+				if (!rest.isEmpty()) {
+					List<String> listed = new ArrayList<>();
+					rest.forEach((file, n) -> listed.add(file + " (" + n + ")"));
+					report.add("\talso, not passed as an argument there: " + String.join(", ", listed));
+				}
 			});
 			Files.write(p.getReport().get().getAsFile().toPath(), report);
 		} catch (IOException e) {
@@ -240,9 +264,8 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 	private static final class Finder extends ASTVisitor {
 		private final CompilationUnit cu;
 		private final String name;
-		private final Level level;
-		/** Whether values with whitespace in them are counted. */
-		private final boolean whitespace;
+		/** The settings of the file's package. */
+		private final MagicStringsPolicy.Resolved settings;
 		/** The file's package, "" for the unnamed one. */
 		private final String pkg;
 		/** Which parameters of the source set's own methods and constructors are messages. */
@@ -254,23 +277,28 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		/** The scope being visited, and the ones it is inside. */
 		private int scope;
 		private final ArrayDeque<Integer> outerScopes = new ArrayDeque<>();
+		/** The unit (statement, or branch head with its first statement) being visited, and the ones it is inside. */
+		private int unit;
+		private final ArrayDeque<Integer> outerUnits = new ArrayDeque<>();
+		/** A branch head's unit, which the next statement (the first of its body) joins; 0 when there is none. */
+		private int joinUnit;
 		private final Map<String, List<Place>> seen;
 		/** Literals passed straight to a call, found when the call is visited, before its arguments are. */
 		private final Set<ASTNode> arguments = Collections.newSetFromMap(new IdentityHashMap<>());
 		/** How many definitions (static final fields, enum constants) the visitor is inside. */
 		private int definitions;
 
-		Finder(CompilationUnit cu, String name, Level level, boolean whitespace, MessageParams messages, Set<String> records, int[] scopes,
+		Finder(CompilationUnit cu, String name, MagicStringsPolicy.Resolved settings, MessageParams messages, Set<String> records, int[] scopes,
 			Map<String, List<Place>> seen) {
 			this.records = records;
 			this.pkg = cu.getPackage() == null ? "" : cu.getPackage().getName().getFullyQualifiedName();
 			this.scopes = scopes;
 			this.scope = ++scopes[0];
+			this.unit = ++scopes[0];
 			this.messages = messages;
 			this.cu = cu;
 			this.name = name;
-			this.level = level;
-			this.whitespace = whitespace;
+			this.settings = settings;
 			this.seen = seen;
 		}
 
@@ -382,13 +410,53 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 			leaveScope();
 		}
 
+		/** A member (method, initializer, field, enum constant) is a scope of its own, and a unit of its own. */
 		private void enterScope() {
 			outerScopes.push(scope);
 			scope = ++scopes[0];
+			outerUnits.push(unit);
+			unit = ++scopes[0];
+			joinUnit = 0;
 		}
 
 		private void leaveScope() {
 			scope = outerScopes.pop();
+			unit = outerUnits.pop();
+		}
+
+		// Statements and branches, for the "statement" proximity. A branch's head (a case's labels, an if's condition) is one
+		// unit with the first statement it leads to, so `case "--x" -> value("--x")` is one however the formatter breaks its
+		// lines; every later statement is a unit of its own, so declaring a flag and then looking it up are two. A block is no
+		// unit: its statements are.
+		@Override
+		public boolean preVisit2(ASTNode node) {
+			if (node instanceof Statement && !(node instanceof Block)) {
+				outerUnits.push(unit);
+				unit = joinUnit != 0 && !(node instanceof SwitchCase) ? joinUnit : ++scopes[0];
+				joinUnit = 0;
+			}
+			return true;
+		}
+
+		@Override
+		public void postVisit(ASTNode node) {
+			if (node instanceof Statement && !(node instanceof Block)) {
+				int own = unit;
+				unit = outerUnits.pop();
+				// What follows a case's labels is the case's body: its first statement joins the case.
+				joinUnit = node instanceof SwitchCase ? own : 0;
+			}
+		}
+
+		@Override
+		public boolean visit(IfStatement node) {
+			node.getExpression().accept(this);
+			// The condition with the first statement of its branch; an else is a branch of its own.
+			joinUnit = unit;
+			node.getThenStatement().accept(this);
+			joinUnit = 0;
+			if (node.getElseStatement() != null) { node.getElseStatement().accept(this); }
+			return false;
 		}
 
 		@Override
@@ -480,12 +548,25 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				&& call.getExpression() instanceof Name type && OPTIONAL.equals(lastName(type));
 		}
 
+		/** Whether a value has a letter in it, not counting the one after a backslash: {@code "\\t"} spelled out is an escape. */
+		private static boolean hasLetter(String value) {
+			for (int i = 0; i < value.length(); i++) {
+				char c = value.charAt(i);
+				if (c == '\\') {
+					i++;
+				} else if (Character.isLetter(c)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		private boolean record(String value, ASTNode node) {
-			if (value.codePoints().anyMatch(Character::isLetter) && (whitespace || value.codePoints().noneMatch(Character::isWhitespace))) {
+			if (hasLetter(value) && (settings.whitespace() || value.codePoints().noneMatch(Character::isWhitespace))) {
 				Kind kind = definitions > 0 ? Kind.DEFINITION : arguments.contains(node) ? Kind.ARGUMENT : Kind.ELSEWHERE;
 				int offset = node.getStartPosition();
 				String where = name + ":" + cu.getLineNumber(offset) + ":" + (cu.getColumnNumber(offset) + 1);
-				seen.computeIfAbsent(value, v -> new ArrayList<>()).add(new Place(name, pkg, cu.getLineNumber(offset), where, level, kind, scope));
+				seen.computeIfAbsent(value, v -> new ArrayList<>()).add(new Place(name, pkg, where, settings, kind, scope, unit));
 			}
 			return false;
 		}
@@ -525,17 +606,8 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		return false;
 	}
 
-	private static Level levelFor(String pkg, Map<String, Level> byPackage, Level fallback) {
-		String best = null;
-		for (String prefix : byPackage.keySet()) {
-			boolean covers = pkg.equals(prefix) || pkg.startsWith(prefix + ".");
-			if (covers && (best == null || prefix.length() > best.length())) { best = prefix; }
-		}
-		return best == null ? fallback : byPackage.get(best);
-	}
-
 	/** Syntax only, no bindings: a file with errors still gives a tree, and the compiler reports the errors. */
-	private static CompilationUnit parse(String src, String level) {
+	private static CompilationUnit parse(String src, String level, String fileName) {
 		ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
 		Map<String, String> options = JavaCore.getOptions();
 		JavaCore.setComplianceOptions(level, options);
@@ -543,6 +615,8 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		parser.setCompilerOptions(options);
 		parser.setKind(ASTParser.K_COMPILATION_UNIT);
 		parser.setSource(src.toCharArray());
+		// module-info.java parses as a module declaration only under its own name.
+		parser.setUnitName(fileName);
 		return (CompilationUnit) parser.createAST(null);
 	}
 

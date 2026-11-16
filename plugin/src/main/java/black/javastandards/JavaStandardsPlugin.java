@@ -44,7 +44,7 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 		ext.getMagicStringsByPackage().convention(Map.of());
 		ext.getMagicStringsElsewhere().convention("ignore");
 		ext.getMagicStringsWhitespace().convention(false);
-		ext.getMagicStringsProximity().convention(0);
+		ext.getMagicStringsProximity().convention(MagicStringsPolicy.Proximity.STATEMENT.word);
 		ext.getJdtVersion().convention(JDT_VERSION);
 		ext.getEcjVersion().convention(ECJ_VERSION);
 
