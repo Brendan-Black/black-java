@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.3.2"
+    id("black.java-standards") version "1.3.3"
 }
 ```
 
@@ -202,10 +202,12 @@ literal with the same value.
 | A repeated value… | Is |
 |---|---|
 | passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error |
-| passed as an argument once, every other use in other files or in that same method | a warning: most likely another concept that shares the spelling, such as one flag in two commands' parsers |
+| passed as an argument once, every other use in other files or in that same method, and no constant among them | a warning: most likely another concept that shares the spelling, such as one flag in two commands' parsers |
+| in a `static final` field and also written as a literal that is passed as an argument | an error, wherever the two are: the name exists, so use it |
 | only ever in one method, with at most one of its literals an argument (`startsWith("--x=")` beside a `case "--x="`) | not reported: read together, changed together. Two arguments in one method (declaring a flag and looking it up) are still an error |
 | all within `magicStringsProximity` of each other, with no constant among them: in one statement, by default (`case "--author" -> value("--author")`, however it is wrapped) | not reported: read together, however many are arguments |
-| never an argument: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
+| never an argument, in three or more methods: the same comparison or `case` written again (`"true"`, `"yes"`, `"on"` in four parsers) | a warning |
+| never an argument, in fewer: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
 | only ever in `static final` fields (any interface field) and enum constants' arguments | not reported |
 
 Java specifics: a literal is an argument when it is passed straight to a method or constructor, or inside parentheses
@@ -221,7 +223,9 @@ annotations; files under the build directory, annotated `@Generated`, or whose o
 
 Labels aren't counted either: a literal passed straight to a parameter of the source set's own methods or constructors
 that only reaches a message, like `check("JSON", token)` where `check` only puts it in an exception. Without types, a
-method matches a call by name and number of arguments, and a constructor by its type's simple name; a parameter that is
+method matches a call by name and number of arguments, and only a call that reaches the source set's own method: an
+unqualified one, on `this` or `super`, or on a type that declares it (`Checks.check(..)`). `list.add(..)` never matches,
+whatever the source set calls its own methods. A constructor matches by its type's simple name. A parameter that is
 used any other way, or goes through a call that isn't known to take a message (`log.info(gson.toJson(item))`), is a
 value.
 
@@ -260,7 +264,8 @@ import black.MagicStrings;
 ```
 
 Each finding lists first the places that make it its level: for a value passed as an argument, its arguments and the
-other uses in their files. Uses in files with no argument follow on one line, by file.
+other uses in their files. Uses in files with no argument follow on one line, by file. Errors are always listed. Values that only warn
+are counted on one line, so the build output stays short; `./gradlew checkMagicStrings --warnings` lists them too.
 
 ## Checks
 
@@ -280,8 +285,8 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.2")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.2")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.3")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.3")
 }
 ```
 
@@ -296,7 +301,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.3.2")
+    implementation("com.github.Brendan-Black.black-java:lib:1.3.3")
 }
 ```
 

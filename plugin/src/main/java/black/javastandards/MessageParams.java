@@ -13,6 +13,7 @@ import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
 import org.eclipse.jdt.core.dom.AssertStatement;
 import org.eclipse.jdt.core.dom.Block;
+import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.CastExpression;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.CompilationUnit;
@@ -22,6 +23,7 @@ import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.Name;
 import org.eclipse.jdt.core.dom.ParenthesizedExpression;
 import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.SimpleName;
@@ -30,6 +32,7 @@ import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.StructuralPropertyDescriptor;
 import org.eclipse.jdt.core.dom.SuperFieldAccess;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
+import org.eclipse.jdt.core.dom.ThisExpression;
 import org.eclipse.jdt.core.dom.Type;
 
 /**
@@ -56,9 +59,12 @@ final class MessageParams {
 	private static final String REQUIRE_NON_NULL = "requireNonNull";
 
 	private final Map<Callee, boolean[]> params;
+	/** For each method, the types that declare one by that name and arity: a call on one of them is the source set's. */
+	private final Map<Callee, Set<String>> declaringTypes;
 
-	private MessageParams(Map<Callee, boolean[]> params) {
+	private MessageParams(Map<Callee, boolean[]> params, Map<Callee, Set<String>> declaringTypes) {
 		this.params = params;
+		this.declaringTypes = declaringTypes;
 	}
 
 	/**
@@ -85,18 +91,32 @@ final class MessageParams {
 				return true;
 			}
 		}));
-		MessageParams current = combine(declarations, d -> new boolean[d.params().size()]);
+		Map<Callee, Set<String>> types = new HashMap<>();
+		declarations.stream().filter(d -> d.type() != null).forEach(d -> types.computeIfAbsent(d.callee(), c -> new HashSet<>()).add(d.type()));
+		MessageParams current = combine(declarations, types, d -> new boolean[d.params().size()]);
 		while (true) {
 			MessageParams known = current;
-			MessageParams next = combine(declarations, d -> known.messageOnly(d));
+			MessageParams next = combine(declarations, types, d -> known.messageOnly(d));
 			if (next.sameAs(current)) { return current; }
 			current = next;
 		}
 	}
 
-	/** Whether the {@code index}th argument of a call to a method named {@code name} is a message. */
-	boolean method(String name, int arity, int index) {
-		return flag(new Callee(name, arity, false), index);
+	/**
+	 * Whether the {@code index}th argument of {@code receiver.name(...)} is a message. Only a call that reaches the source
+	 * set's own method counts: an unqualified one, on {@code this} or {@code super} (a null receiver), or on a type that
+	 * declares the method. Without types, {@code list.add(...)} could be anything's, however many {@code add}s the source
+	 * set declares.
+	 */
+	boolean method(Expression receiver, String name, int arity, int index) {
+		Callee callee = new Callee(name, arity, false);
+		boolean ours = receiver == null || receiver instanceof ThisExpression
+			|| receiver instanceof Name type && declaringTypes.getOrDefault(callee, Set.of()).contains(lastName(type));
+		return ours && flag(callee, index);
+	}
+
+	private static String lastName(Name name) {
+		return name instanceof QualifiedName q ? q.getName().getIdentifier() : ((SimpleName) name).getIdentifier();
 	}
 
 	/** Whether the {@code index}th argument of {@code new Type(...)}, by the type's simple name, is a message. */
@@ -122,7 +142,7 @@ final class MessageParams {
 		return params.entrySet().stream().allMatch(e -> Arrays.equals(e.getValue(), other.params.get(e.getKey())));
 	}
 
-	private static MessageParams combine(List<Declaration> declarations, Function<Declaration, boolean[]> each) {
+	private static MessageParams combine(List<Declaration> declarations, Map<Callee, Set<String>> types, Function<Declaration, boolean[]> each) {
 		Map<Callee, boolean[]> out = new HashMap<>();
 		for (Declaration d : declarations) {
 			boolean[] flags = each.apply(d);
@@ -133,7 +153,7 @@ final class MessageParams {
 				}
 			}
 		}
-		return new MessageParams(out);
+		return new MessageParams(out, types);
 	}
 
 	/** For each of the declaration's parameters, whether every use of it in the body is in a message. */
@@ -185,10 +205,10 @@ final class MessageParams {
 				String name = call.getName().getIdentifier();
 				if (STRING_BUILDERS.contains(name)) { continue; }
 				return name.equals(REQUIRE_NON_NULL) ? index > 0
-					: MagicStringsAction.MESSAGE_METHODS.contains(name) || method(name, call.arguments().size(), index);
+					: MagicStringsAction.MESSAGE_METHODS.contains(name) || method(call.getExpression(), name, call.arguments().size(), index);
 			} else if (parent instanceof SuperMethodInvocation call) {
 				int index = call.arguments().indexOf(child);
-				if (index >= 0) { return method(call.getName().getIdentifier(), call.arguments().size(), index); }
+				if (index >= 0) { return method(null, call.getName().getIdentifier(), call.arguments().size(), index); }
 			} else if (parent instanceof ClassInstanceCreation creation) {
 				int index = creation.arguments().indexOf(child);
 				if (index < 0) { continue; }

@@ -19,6 +19,7 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.options.Option;
 import org.gradle.work.DisableCachingByDefault;
 import org.gradle.workers.WorkerExecutor;
 
@@ -69,6 +70,19 @@ public abstract class MagicStringsTask extends DefaultTask {
 	@Internal
 	public abstract DirectoryProperty getBaseDir();
 
+	/** Whether to list the magic strings that only warn, not just count them: {@code checkMagicStrings --warnings}. */
+	private boolean listWarnings;
+
+	@Option(option = "warnings", description = "Also lists the magic strings that only warn, not just how many there are.")
+	public void setListWarnings(boolean listWarnings) {
+		this.listWarnings = listWarnings;
+	}
+
+	@Internal
+	public boolean getListWarnings() {
+		return listWarnings;
+	}
+
 	@Inject
 	protected abstract WorkerExecutor getWorkerExecutor();
 
@@ -98,19 +112,26 @@ public abstract class MagicStringsTask extends DefaultTask {
 		queue.await();
 
 		int errors = 0;
+		int unlisted = 0;
 		boolean error = false;
 		for (String line : Files.readAllLines(report.toPath())) {
 			if (!line.startsWith("\t")) {
 				String[] levelAndMessage = line.split("\t", 2);
 				error = levelAndMessage[0].equals(MagicStringsAction.Level.ERROR.word);
-				if (error) { errors++; }
+				if (error) { errors++; } else if (!listWarnings) { unlisted++; }
 				line = levelAndMessage[0] + ": " + levelAndMessage[1];
 			}
+			// Errors are always listed; warnings, which don't fail the build, only on request, so they aren't a wall of text
+			// nobody reads on every run.
+			if (!error && !listWarnings) { continue; }
 			if (error) {
 				getLogger().error(line);
 			} else {
 				getLogger().warn(line);
 			}
+		}
+		if (unlisted > 0) {
+			getLogger().warn("warning: " + unlisted + " more magic string(s) that only warn; checkMagicStrings --warnings lists them");
 		}
 		if (errors > 0) {
 			throw new VerificationException(errors + " magic string(s), listed above: name each one, with a constant or an enum."

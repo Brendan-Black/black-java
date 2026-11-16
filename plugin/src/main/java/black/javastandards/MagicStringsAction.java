@@ -164,6 +164,9 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 	 */
 	private record Place(String file, String pkg, String where, MagicStringsPolicy.Resolved settings, Kind kind, int scope, int unit) {}
 
+	/** How many methods a value never passed as an argument must be in to be the same check written again. */
+	private static final int SPREAD = 3;
+
 	/** Whether a value's literals are all this close. */
 	private static boolean close(List<Place> places, MagicStringsPolicy.Proximity proximity) {
 		Place first = places.get(0);
@@ -217,17 +220,27 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				// One method's literals, with at most one of them an argument, are read together and change together: a
 				// parser's startsWith("--x=") beside its case "--x=". Two arguments (declaring a flag and looking it up) are the
 				// typo the rule is for.
-				if (arguments <= 1 && places.stream().allMatch(place -> place.scope() == places.get(0).scope())) { return; }
+				boolean defined = places.stream().anyMatch(place -> place.kind() == Kind.DEFINITION);
+				if (arguments <= 1 && !defined && places.stream().allMatch(place -> place.scope() == places.get(0).scope())) { return; }
 				// Literals this close, however many are arguments, are read together: a case's startsWith("--x") and its
 				// value("--x"). Not with a constant among them: a constant plus a literal should use the constant. A value across
 				// packages takes the narrowest proximity and the most severe levels among them.
 				var proximity = places.stream().map(place -> place.settings().proximity()).min(Enum::compareTo).orElseThrow();
-				if (places.stream().noneMatch(place -> place.kind() == Kind.DEFINITION) && close(places, proximity)) { return; }
-				Level level = places.stream().map(place -> place.settings().level()).min(Enum::compareTo).orElseThrow();
-				if (arguments == 0) { level = places.stream().map(place -> place.settings().elsewhere()).min(Enum::compareTo).orElseThrow(); }
+				if (!defined && close(places, proximity)) { return; }
+				Level asArgument = places.stream().map(place -> place.settings().level()).min(Enum::compareTo).orElseThrow();
+				Level level = asArgument;
+				if (arguments == 0) {
+					level = places.stream().map(place -> place.settings().elsewhere()).min(Enum::compareTo).orElseThrow();
+					// Compared or matched in several methods, a value is the same check written again each time (four parsers of
+					// "true", "yes", "on"): at least a warning, though it is never passed on.
+					long methods = places.stream().filter(place -> place.kind() != Kind.DEFINITION).mapToInt(Place::scope).distinct().count();
+					Level spread = Level.leastSevere(asArgument, Level.WARNING);
+					if (methods >= SPREAD && spread.compareTo(level) < 0) { level = spread; }
+				}
 				// One argument, every other use in another file or in its own method: most likely another concept that shares
-				// the spelling, such as one flag in two commands' parsers, so at most a warning.
-				if (arguments == 1) {
+				// the spelling, such as one flag in two commands' parsers, so at most a warning. Never with a constant among them:
+				// the name exists, so the literal is wrong wherever it is.
+				if (arguments == 1 && !defined) {
 					Place argument = passed.get(0);
 					if (places.stream().allMatch(place -> place.scope() == argument.scope() || !place.file().equals(argument.file()))) {
 						level = Level.leastSevere(level, Level.WARNING);
@@ -325,14 +338,14 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 			if (isWrapper(node)) { return true; }
 			if (COMPARISONS.contains(method) && node.getExpression() != null) { markArgument(node.getExpression()); }
 			int arity = node.arguments().size();
-			return call(node.getExpression(), node.arguments(), i -> messages.method(method, arity, i));
+			return call(node.getExpression(), node.arguments(), i -> messages.method(node.getExpression(), method, arity, i));
 		}
 
 		@Override
 		public boolean visit(SuperMethodInvocation node) {
 			String method = node.getName().getIdentifier();
 			int arity = node.arguments().size();
-			return call(null, node.arguments(), i -> messages.method(method, arity, i));
+			return call(null, node.arguments(), i -> messages.method(null, method, arity, i));
 		}
 
 		@Override
