@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.3.3"
+    id("black.java-standards") version "1.3.4"
 }
 ```
 
@@ -203,7 +203,7 @@ literal with the same value.
 |---|---|
 | passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error |
 | passed as an argument once, every other use in other files or in that same method, and no constant among them | a warning: most likely another concept that shares the spelling, such as one flag in two commands' parsers |
-| in a `static final` field and also written as a literal that is passed as an argument | an error, wherever the two are: the name exists, so use it |
+| in a `static final` field and also written as a literal passed as an argument where that field can be named (public, protected or an interface's; package-private and in its package; private and in its file) | an error: the name exists, so use it |
 | only ever in one method, with at most one of its literals an argument (`startsWith("--x=")` beside a `case "--x="`) | not reported: read together, changed together. Two arguments in one method (declaring a flag and looking it up) are still an error |
 | all within `magicStringsProximity` of each other, with no constant among them: in one statement, by default (`case "--author" -> value("--author")`, however it is wrapped) | not reported: read together, however many are arguments |
 | never an argument, in three or more methods: the same comparison or `case` written again (`"true"`, `"yes"`, `"on"` in four parsers) | a warning |
@@ -285,8 +285,8 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.3")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.3")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.4")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.4")
 }
 ```
 
@@ -301,7 +301,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.3.3")
+    implementation("com.github.Brendan-Black.black-java:lib:1.3.4")
 }
 ```
 

@@ -162,7 +162,26 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 	 * A literal: its file and package, where in the file, its package's settings, its kind, and the member (method, field)
 	 * and the unit (statement, or branch head with its first statement) it is in.
 	 */
-	private record Place(String file, String pkg, String where, MagicStringsPolicy.Resolved settings, Kind kind, int scope, int unit) {}
+	private record Place(String file, String pkg, String where, MagicStringsPolicy.Resolved settings, Kind kind, int scope, int unit, Reach reach) {}
+
+	/** Where a constant can be named from: anywhere, its package, or its own file (private). */
+	enum Reach {
+		ANYWHERE, PACKAGE, FILE
+	}
+
+	/**
+	 * Whether a constant among these literals can be named where one of them is passed as an argument. A private constant
+	 * of another class is no name the literal could use, so it says nothing about whether the two are one concept. An
+	 * enum constant's argument has no reach: it isn't a name for the string.
+	 */
+	private static boolean usableConstant(List<Place> places) {
+		List<Place> passed = places.stream().filter(place -> place.kind() == Kind.ARGUMENT).toList();
+		return places.stream().filter(place -> place.kind() == Kind.DEFINITION && place.reach() != null).anyMatch(d -> switch (d.reach()) {
+			case ANYWHERE -> true;
+			case PACKAGE -> passed.stream().anyMatch(a -> a.pkg().equals(d.pkg()));
+			case FILE -> passed.stream().anyMatch(a -> a.file().equals(d.file()));
+		});
+	}
 
 	/** How many methods a value never passed as an argument must be in to be the same check written again. */
 	private static final int SPREAD = 3;
@@ -240,7 +259,7 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				// One argument, every other use in another file or in its own method: most likely another concept that shares
 				// the spelling, such as one flag in two commands' parsers, so at most a warning. Never with a constant among them:
 				// the name exists, so the literal is wrong wherever it is.
-				if (arguments == 1 && !defined) {
+				if (arguments == 1 && !usableConstant(places)) {
 					Place argument = passed.get(0);
 					if (places.stream().allMatch(place -> place.scope() == argument.scope() || !place.file().equals(argument.file()))) {
 						level = Level.leastSevere(level, Level.WARNING);
@@ -300,6 +319,8 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		private final Set<ASTNode> arguments = Collections.newSetFromMap(new IdentityHashMap<>());
 		/** How many definitions (static final fields, enum constants) the visitor is inside. */
 		private int definitions;
+		/** The reach of the constant field being visited; null inside an enum constant's arguments, or none. */
+		private Reach reach;
 
 		Finder(CompilationUnit cu, String name, MagicStringsPolicy.Resolved settings, MessageParams messages, Set<String> records, int[] scopes,
 			Map<String, List<Place>> seen) {
@@ -389,13 +410,19 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		@Override
 		public boolean visit(FieldDeclaration node) {
 			enterScope();
-			if (isConstant(node)) { definitions++; }
+			if (isConstant(node)) {
+				definitions++;
+				reach = reachOf(node);
+			}
 			return true;
 		}
 
 		@Override
 		public void endVisit(FieldDeclaration node) {
-			if (isConstant(node)) { definitions--; }
+			if (isConstant(node)) {
+				definitions--;
+				reach = null;
+			}
 			leaveScope();
 		}
 
@@ -579,9 +606,17 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				Kind kind = definitions > 0 ? Kind.DEFINITION : arguments.contains(node) ? Kind.ARGUMENT : Kind.ELSEWHERE;
 				int offset = node.getStartPosition();
 				String where = name + ":" + cu.getLineNumber(offset) + ":" + (cu.getColumnNumber(offset) + 1);
-				seen.computeIfAbsent(value, v -> new ArrayList<>()).add(new Place(name, pkg, where, settings, kind, scope, unit));
+				seen.computeIfAbsent(value, v -> new ArrayList<>()).add(new Place(name, pkg, where, settings, kind, scope, unit, kind == Kind.DEFINITION ? reach : null));
 			}
 			return false;
+		}
+
+		/** A constant field's reach: an interface's, a public or a protected one's is anywhere. */
+		private static Reach reachOf(FieldDeclaration node) {
+			int modifiers = node.getModifiers();
+			boolean inInterface = node.getParent() instanceof TypeDeclaration type && type.isInterface();
+			if (inInterface || Modifier.isPublic(modifiers) || Modifier.isProtected(modifiers)) { return Reach.ANYWHERE; }
+			return Modifier.isPrivate(modifiers) ? Reach.FILE : Reach.PACKAGE;
 		}
 
 		/** A static final field, or any field of an interface, which is implicitly static final. */
