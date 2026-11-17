@@ -308,10 +308,11 @@ dependencies {
 
 Use `api` instead of `implementation` in a library whose public types implement it.
 
-- **[`black.TypedString`](lib/src/main/java/black/TypedString.java)** marks a type that holds and validates one shaped
-  string. It declares nothing. Implementations are prime candidates for [value
-  classes](guide/conventions/values/value-classes.md) once those are ready. See [*Typed strings: wrap
-  them*](https://github.com/Brendan-Black/black/blob/master/conventions/values/typed-strings.md).
+- **[`black.TypedString`](https://github.com/Brendan-Black/TypedString)** marks a type that holds and validates one
+  shaped string. It declares nothing, and lives in its own repository (`com.github.Brendan-Black:TypedString`), which
+  lib depends on, so a library can implement it without pulling in the rest of lib. Implementations are prime
+  candidates for [value classes](guide/conventions/values/value-classes.md) once those are ready. See [*Typed strings:
+  wrap them*](https://github.com/Brendan-Black/black/blob/master/conventions/values/typed-strings.md).
 
 ## Warnings
 

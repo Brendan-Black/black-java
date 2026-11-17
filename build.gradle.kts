@@ -1,5 +1,5 @@
 // Three modules, which JitPack builds from each tag:
-//   lib     com.github.Brendan-Black.black-java:lib:<tag>     what code compiles against, such as black.TypedString
+//   lib     com.github.Brendan-Black.black-java:lib:<tag>     what code compiles against, such as black.MagicStrings
 //   checks  com.github.Brendan-Black.black-java:checks:<tag>  annotation processors for the hard rules, which the plugin bundles
 //   plugin  com.github.Brendan-Black.black-java:plugin:<tag>  the black.java-standards Gradle plugin (see README.md)
 // The root publishes nothing: on JitPack, com.github.Brendan-Black:black-java:<tag> means all the modules together.
