@@ -1,7 +1,7 @@
 # Java: value classes
 
-**Convention.** Write typed-string wrappers so that adopting value classes is one word: a record or final class with
-final fields, never used in `synchronized`, and never compared with `==`.
+Write typed-string wrappers so that adopting value classes is one word: a record or final class with final fields,
+never used in `synchronized`, and never compared with `==`.
 
 JEP 401 is integrated for JDK 28 as a preview feature, behind `--enable-preview`, and the syntax may still change:
 

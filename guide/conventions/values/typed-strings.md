@@ -18,6 +18,7 @@ record Sku(String value) implements TypedString {
 void reserve(Sku sku, WarehouseId warehouse, CustomerId customer) { ... }
 ```
 
-The marker is published, with nothing in it, as `black.TypedString` in this repo's [`lib` module](../../README.md#library),
-so projects share one definition. If you also want one Jackson serializer or JPA `AttributeConverter` to handle them
-all, give it a `String value()` method; a record whose component is named `value` implements it for free.
+The marker is published, with nothing in it, as `black.TypedString` in this repo's [`lib`
+module](../../../README.md#library), so projects share one definition. If you also want one Jackson serializer or JPA
+`AttributeConverter` to handle them all, give it a `String value()` method; a record whose component is named `value`
+implements it for free.

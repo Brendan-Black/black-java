@@ -1,8 +1,8 @@
 # black-java
 
-My Java standards: the tooling below that enforces layout and compiler warnings, a small [library](#library) of the types
-the style guide calls for, and the guide's Java specifics in [`guide/`](guide/INDEX.md). The guide itself is language-agnostic and
-lives in [black](https://github.com/Brendan-Black/black).
+My Java standards: the tooling below that enforces layout and compiler warnings, a small [library](#library) of the
+types the style guide calls for, and the guide's Java specifics in [`guide/`](guide/INDEX.md). The guide itself is
+language-agnostic and lives in [black](https://github.com/Brendan-Black/black).
 
 ## Formatter
 
@@ -108,9 +108,9 @@ Checked against JDT 3.48 (VS Code Java extension 1.58):
 ## Gradle plugin
 
 `black.java-standards` makes a project's build enforce both files: `gradle check` fails on code that isn't formatted
-with the profile, and on compiler warnings. It also makes the guide's hard rules compiler errors (see [Checks](#checks)).
-The plugin carries its own copies of the two files and the checks, so a project gets a fixed version of the rules, which
-only changes when it moves to a newer plugin version.
+with the profile, and on compiler warnings. It also makes the guide's hard rules compiler errors (see
+[Checks](#checks)). The plugin carries its own copies of the two files and the checks, so a project gets a fixed version
+of the rules, which only changes when it moves to a newer plugin version.
 
 ### Adding it
 
@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.3.5"
+    id("black.java-standards") version "1.3.6"
 }
 ```
 
@@ -191,7 +191,7 @@ hides.
 
 `checkMagicStrings`, run by `check`, reports every string value that appears in two literals of the main source set,
 and every place it appears, by the definition in the guide's
-[name magic strings](https://github.com/Brendan-Black/black/blob/master/values/magic-strings.md#what-the-build-checks).
+[repeated-literal check](https://github.com/Brendan-Black/black/blob/master/conventions/values/magic-strings-check.md).
 Name it, with a `static final` constant or an enum, and the literal appears once. It reads syntax only, through JDT, so
 it needs no compiled classes, and sees the whole source set at once.
 
@@ -210,16 +210,16 @@ literal with the same value.
 | never an argument, in fewer: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
 | only ever in `static final` fields (any interface field) and enum constants' arguments | not reported |
 
-Java specifics: a literal is an argument when it is passed straight to a method or constructor, or inside parentheses
-or an array initializer there, or is the receiver of `equals`, `equalsIgnoreCase`, `contentEquals` or `compareTo`. A
+Java specifics: a literal is an argument when it is passed straight to a method or constructor, or inside parentheses or
+an array initializer there, or is the receiver of `equals`, `equalsIgnoreCase`, `contentEquals` or `compareTo`. A
 literal that a value is built from, `Optional.of("x")`, `Optional.ofNullable("x")` or `new R("x")` for a record `R` of
-the source set, is an argument only if that value is passed on: `return Optional.of("hard")` is not one. A method is
-any method, constructor or initializer, and a literal in a field belongs to that field. Not counted: messages (the
-arguments of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`,
-`lifecycle`, `quiet`, `print`, `println`, `printf`, `format`, `formatted` and `requireNonNull`, of a constructor whose
-type ends in `Exception` or `Error`, and an `assert`'s message); values with no letter (a backslash and the letter after it, `"\\t"`, is an escape spelled out); values with whitespace in them;
-annotations; files under the build directory, annotated `@Generated`, or whose opening comment has a line starting
-`@generated`; and every source set but `main`, so tests aren't checked.
+the source set, is an argument only if that value is passed on: `return Optional.of("hard")` is not one. A method is any
+method, constructor or initializer, and a literal in a field belongs to that field. Not counted: messages (the arguments
+of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`, `lifecycle`, `quiet`, `print`,
+`println`, `printf`, `format`, `formatted` and `requireNonNull`, of a constructor whose type ends in `Exception` or
+`Error`, and an `assert`'s message); values with no letter (a backslash and the letter after it, `"\\t"`, is an escape
+spelled out); values with whitespace in them; annotations; files under the build directory, annotated `@Generated`, or
+whose opening comment has a line starting `@generated`; and every source set but `main`, so tests aren't checked.
 
 Labels aren't counted either: a literal passed straight to a parameter of the source set's own methods or constructors
 that only reaches a message, like `check("JSON", token)` where `check` only puts it in an exception. Without types, a
@@ -251,10 +251,10 @@ Five settings change it (see [Settings](#settings)):
 | `"module"` | the whole source set: nothing is reported |
 
 A package, and the packages inside it, can set all four for itself in its `package-info.java`, and the whole module in
-`module-info.java`, with `black.MagicStrings` from `lib` (a source-only annotation: add `lib` as `compileOnly` if nothing
-else uses it). Anything left at `INHERIT` comes from the package above, then the module, then the build script; the
-longest package name wins, and at the same name `package-info.java` wins over `magicStringsByPackage`. A value across
-packages takes the most severe level and the narrowest proximity among them.
+`module-info.java`, with `black.MagicStrings` from `lib` (a source-only annotation: add `lib` as `compileOnly` if
+nothing else uses it). Anything left at `INHERIT` comes from the package above, then the module, then the build script;
+the longest package name wins, and at the same name `package-info.java` wins over `magicStringsByPackage`. A value
+across packages takes the most severe level and the narrowest proximity among them.
 
 ```java
 @MagicStrings(level = MagicStrings.Level.WARNING, proximity = MagicStrings.Proximity.FILE)
@@ -264,17 +264,18 @@ import black.MagicStrings;
 ```
 
 Each finding lists first the places that make it its level: for a value passed as an argument, its arguments and the
-other uses in their files. Uses in files with no argument follow on one line, by file. Errors are always listed. Values that only warn
-are counted on one line, so the build output stays short; `./gradlew checkMagicStrings --warnings` lists them too.
+other uses in their files. Uses in files with no argument follow on one line, by file. Errors are always listed. Values
+that only warn are counted on one line, so the build output stays short; `./gradlew checkMagicStrings --warnings` lists
+them too.
 
 ## Checks
 
-The `checks` module turns the [guide](https://github.com/Brendan-Black/black/blob/master/INDEX.md)'s hard rules into compiler errors. They're annotation processors,
-so javac and ECJ both report them. The [Gradle plugin](#gradle-plugin) puts them on every source set's annotation
-processor path, so `compileJava` and `javaWarnings` both fail. They can't be turned off: a rule that can be
-switched off isn't a hard rule.
+The `checks` module turns the [guide](https://github.com/Brendan-Black/black/blob/master/INDEX.md)'s hard rules into
+compiler errors. They're annotation processors, so javac and ECJ both report them. The [Gradle plugin](#gradle-plugin)
+puts them on every source set's annotation processor path, so `compileJava` and `javaWarnings` both fail. They can't be
+turned off: a rule that can be switched off isn't a hard rule.
 
-- **[No `Optional` in a constructor](https://github.com/Brendan-Black/black/blob/master/values/no-optional-in-constructor.md)**
+- **[No `Optional` in a constructor](guide/correctness/values/no-optional-in-constructor.md)**
   ([`NoOptionalInConstructors`](checks/src/main/java/black/checks/NoOptionalInConstructors.java)): a constructor
   parameter or record component of type `java.util.Optional` is an error.
 
@@ -285,15 +286,15 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.5")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.5")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.6")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.6")
 }
 ```
 
 ## Library
 
-The `lib` module holds what the guide has code implement, so projects share one definition. It depends only on the JDK and
-is compiled for Java 17. JitPack builds it from each tag:
+The `lib` module holds what the guide has code implement, so projects share one definition. It depends only on the JDK
+and is compiled for Java 17. JitPack builds it from each tag:
 
 ```kotlin
 repositories {
@@ -301,15 +302,16 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.3.5")
+    implementation("com.github.Brendan-Black.black-java:lib:1.3.6")
 }
 ```
 
 Use `api` instead of `implementation` in a library whose public types implement it.
 
-- **[`black.TypedString`](lib/src/main/java/black/TypedString.java)** marks a type that holds and validates one shaped string.
-  It declares nothing. Implementations are prime candidates for [value classes](guide/values/value-classes.md) once those are
-  ready. See [*Typed strings: wrap them*](https://github.com/Brendan-Black/black/blob/master/values/typed-strings.md).
+- **[`black.TypedString`](lib/src/main/java/black/TypedString.java)** marks a type that holds and validates one shaped
+  string. It declares nothing. Implementations are prime candidates for [value
+  classes](guide/conventions/values/value-classes.md) once those are ready. See [*Typed strings: wrap
+  them*](https://github.com/Brendan-Black/black/blob/master/conventions/values/typed-strings.md).
 
 ## Warnings
 

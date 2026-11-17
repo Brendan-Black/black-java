@@ -65,7 +65,7 @@ import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 
 /**
- * Finds every string value that appears in more than one literal (black style guide, values/magic-strings.md). Values match
+ * Finds every string value that appears in more than one literal (black style guide, conventions/values/magic-strings.md). Values match
  * only when identical, after escapes are resolved: {@code "orderId"} matches {@code "orderId"}, not
  * {@code "orderid"} or {@code "orderIdList"}.
  * <p>
@@ -272,7 +272,7 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				}
 				if (level == Level.IGNORE) { return; }
 				report.add(level.word + "\tmagic string " + quote(value) + " appears " + places.size() + " times, " + arguments
-					+ " as an argument: name it (black style guide, values/magic-strings.md)");
+					+ " as an argument: name it (black style guide, conventions/values/magic-strings.md)");
 				// First the places that make it this level: the arguments and the other uses in their files. Uses in files with no
 				// argument follow, by file.
 				Set<String> argumentFiles = new HashSet<>();
