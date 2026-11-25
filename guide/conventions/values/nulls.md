@@ -1,6 +1,7 @@
 # Java: nulls
 
-Convert incoming nulls to `Optional` or a default. Pass-through records are a convenient place:
+Decide at the edge what an incoming null means: `Optional`, a default, or a rejection. Pass-through records are a
+convenient place to carry one that means "absent":
 
 ```java
 record MyRecord(@Nullable String prop1, String prop2) {

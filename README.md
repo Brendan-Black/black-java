@@ -191,7 +191,7 @@ hides.
 
 `checkMagicStrings`, run by `check`, reports every string value that appears in two literals of the main source set,
 and every place it appears, by the definition in the guide's
-[repeated-literal check](https://github.com/Brendan-Black/black/blob/master/conventions/values/magic-strings-check.md).
+[repeated-literal check](https://github.com/Brendan-Black/black/blob/master/reference/magic-strings-check.md).
 Name it, with a `static final` constant or an enum, and the literal appears once. It reads syntax only, through JDT, so
 it needs no compiled classes, and sees the whole source set at once.
 

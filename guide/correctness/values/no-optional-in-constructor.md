@@ -1,7 +1,7 @@
 # No `Optional` in a constructor
 
-Java only. `Optional<Anything>` never appears in a constructor's parameter list, record components included, since they
-are its canonical constructor. No exception, and no deference to the code around you.
+Java only. Keep `Optional<Anything>` out of a constructor's parameter list, record components included, since they
+are its canonical constructor. As a correctness rule, it doesn't yield to the code around you.
 
 `Optional` is a return-type tool. As a parameter it is one more thing that can itself be null, so the "optional" value
 has three states (present, empty, null) and the type admits to two. At scale: `new Address(Optional.empty(),

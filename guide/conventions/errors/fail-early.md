@@ -19,3 +19,7 @@ record EmailAddress(String value) implements TypedString {
 
 Wrap with context and keep the cause:
 `throw new OrderSyncException("syncing order " + orderId + " to warehouse " + warehouseId, e);`
+
+Throwing is the default here: ["I don't know,
+throw"](https://github.com/Brendan-Black/black/blob/master/philosophy/judgement.md). Where callers branch on bad
+input, a static `parse` that returns a sealed result ([expected-failures](expected-failures.md)) is as good an answer.
