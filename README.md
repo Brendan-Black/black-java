@@ -151,7 +151,7 @@ the checkout, whatever version it names. CI and JitPack don't have the checkout,
 | `checkFormat` | Fails if a Java file isn't formatted with the profile, and lists the files. Run by `check`. |
 | `format` | Formats every Java file with the profile, keeping each file's line endings. |
 | `javaWarnings` | Compiles every source set with ECJ, writing nothing, and fails on compiler warnings. Run by `check`. Each source set also has its own task: `javaWarningsMain`, `javaWarningsTest`. |
-| `checkMagicStrings` | Fails if a string value is repeated in the main source set and passed as an argument: see [Magic strings](#magic-strings). Run by `check`. |
+| `checkMagicStrings` | Fails if a string value is written twice in the main source set: see [Magic strings](#magic-strings). Run by `check`. |
 | `javaStandardsIde` | Sets up VS Code to match: copies both files into `.vscode/`, and creates `.vscode/settings.json` pointing at them, or lists what to change in an existing one. |
 
 The profile never takes away a line break, so `checkFormat` doesn't impose a layout: it only checks that a file is
@@ -174,9 +174,9 @@ javaStandards {
     honorSuppressWarnings = false  // also count what @SuppressWarnings hides (default true)
     magicStrings = "warning"       // values repeated as arguments only warn: "error" (default), "warning" or "ignore"
     magicStringsByPackage = mapOf("com.example.legacy" to "ignore")  // the same, for a package and those below it
-    magicStringsElsewhere = "warning" // the most a value that is never an argument can be: "ignore" (default), "warning" or "error"
+    magicStringsElsewhere = "warning" // the most a value that is never an argument can be: "error" (default), "warning" or "ignore"
     magicStringsWhitespace = true  // also check values with whitespace in them (default false)
-    magicStringsProximity = "file" // how close literals must be to be read together: "statement" (default), "method", "file", "package", "module"
+    magicStringsProximity = "file" // how close literals may sit and go unreported: "none" (default), "statement", "method", "file", "package", "module"
     formatterProfile = file("my-formatter.xml")  // instead of the plugin's java-formatter.xml
     warningSettings = file("my-warnings.prefs")  // instead of the plugin's java-warnings.prefs
     jdtVersion = "3.47.0"          // org.eclipse.jdt:org.eclipse.jdt.core, which formats
@@ -201,19 +201,16 @@ literal with the same value.
 
 | A repeated value… | Is |
 |---|---|
-| passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error |
-| passed as an argument once, every other use in other files or in that same method, and no constant among them | a warning: most likely another concept that shares the spelling, such as one flag in two commands' parsers |
-| a `static final` field whose whole value is the string, and a literal of it passed as an argument where that field can be named (public, protected or an interface's; package-private and in its package; private and in its file) | an error: the name exists, so use it |
-| only ever in one method, with at most one of its literals an argument (`startsWith("--x=")` beside a `case "--x="`) | not reported: read together, changed together. Two arguments in one method (declaring a flag and looking it up) are still an error |
-| all within `magicStringsProximity` of each other, with no constant among them: in one statement, by default (`case "--author" -> value("--author")`, however it is wrapped) | not reported: read together, however many are arguments |
-| never an argument, in three or more methods: the same comparison or `case` written again (`"true"`, `"yes"`, `"on"` in four parsers) | a warning |
-| never an argument, in fewer: assignments, returns, `case` labels | not reported, unless `magicStringsElsewhere` asks |
+| passed as an argument at least once: `get("id")`, `List.of("a")`, `new Foo("x")`, `"SHIPPED".equals(s)` | an error, by `magicStrings` |
+| never an argument: assignments, returns, `case` labels, and a literal a value is built from, such as `Optional.of("hard")` | an error, by `magicStringsElsewhere` |
+| a literal beside a `static final` field it could use: one whose whole value is the string, and which is public, protected or an interface's, or package-private and in the literal's package, or private and in its file | an error. Use the constant if it names the same concept; if it names another that shares the spelling, give the literal a name of its own |
+| a literal beside a constant it could not use | judged as if the constant weren't there |
 | only ever in `static final` fields (any interface field) and enum constants' arguments | not reported |
 
 Java specifics: a literal is an argument when it is passed straight to a method or constructor, or inside parentheses or
 an array initializer there, or is the receiver of `equals`, `equalsIgnoreCase`, `contentEquals` or `compareTo`. A
 literal that a value is built from, `Optional.of("x")`, `Optional.ofNullable("x")` or `new R("x")` for a record `R` of
-the source set, is an argument only if that value is passed on: `return Optional.of("hard")` is not one. A method is any
+the source set, is elsewhere, whether or not that value is passed on. A method is any
 method, constructor or initializer, and a literal in a field belongs to that field. Not counted: messages (the arguments
 of methods named `trace`, `debug`, `info`, `warn`, `warning`, `error`, `fatal`, `log`, `lifecycle`, `quiet`, `print`,
 `println`, `printf`, `format`, `formatted` and `requireNonNull`, of a constructor whose type ends in `Exception` or
@@ -235,16 +232,18 @@ Five settings change it (see [Settings](#settings)):
 - **`magicStringsByPackage`**: the same, for one package and the packages below it. The longest matching package wins.
   A value repeated across packages takes the most severe of their levels; literals in an `"ignore"` package aren't
   counted at all.
-- **`magicStringsElsewhere`**: the most a value that is never an argument can be, `"ignore"` (the default, which
-  checks arguments only), `"warning"` or `"error"`.
+- **`magicStringsElsewhere`**: the most a value that is never an argument can be, `"error"` (the default), `"warning"`
+  or `"ignore"`, which checks arguments only.
 - **`magicStringsWhitespace`**: `true` also checks values with whitespace in them (a space, a tab, a newline). Off by
   default: keys, headers and flags have none, so such a value is almost always text for people.
-- **`magicStringsProximity`**: how close a value's literals must all be to be read together, and so not reported,
-  however many are arguments. A constant among them is never close: a constant plus a literal should use the constant.
+- **`magicStringsProximity`**: loosens the check. A value whose literals all sit this close together isn't reported,
+  however many are arguments. By default nothing is close, and a repeat is reported wherever it sits. A constant among
+  them is never close: a constant plus a literal should use the constant.
 
 | Proximity | Literals are close when they are all in |
 |---|---|
-| `"statement"` (default) | one statement, or one branch's head and the first statement it leads to: a `case`'s labels, an `if`'s condition. Line breaks don't matter, and a later statement in the branch is a statement of its own |
+| `"none"` (default) | never: every repeat is reported |
+| `"statement"` | one statement, or one branch's head and the first statement it leads to: a `case`'s labels, an `if`'s condition. Line breaks don't matter, and a later statement in the branch is a statement of its own |
 | `"method"` | one method, constructor, initializer or field |
 | `"file"` | one file |
 | `"package"` | one package |

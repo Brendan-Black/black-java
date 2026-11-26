@@ -42,9 +42,9 @@ public class JavaStandardsPlugin implements Plugin<Project> {
 		ext.getHonorSuppressWarnings().convention(true);
 		ext.getMagicStrings().convention("error");
 		ext.getMagicStringsByPackage().convention(Map.of());
-		ext.getMagicStringsElsewhere().convention("ignore");
+		ext.getMagicStringsElsewhere().convention("error");
 		ext.getMagicStringsWhitespace().convention(false);
-		ext.getMagicStringsProximity().convention(MagicStringsPolicy.Proximity.STATEMENT.word);
+		ext.getMagicStringsProximity().convention(MagicStringsPolicy.Proximity.NONE.word);
 		ext.getJdtVersion().convention(JDT_VERSION);
 		ext.getEcjVersion().convention(ECJ_VERSION);
 

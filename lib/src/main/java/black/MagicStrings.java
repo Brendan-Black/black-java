@@ -45,7 +45,7 @@ public @interface MagicStrings {
 	Whitespace whitespace() default Whitespace.INHERIT;
 
 	/**
-	 * How close a value's literals must all be to be read together, and so not reported.
+	 * How close a value's literals may all sit and go unreported; none by default.
 	 *
 	 * @return the proximity
 	 */
@@ -77,6 +77,8 @@ public @interface MagicStrings {
 	enum Proximity {
 		/** As the package above, the module, or the build script says. */
 		INHERIT,
+		/** Nothing is close: every repeat is reported. */
+		NONE,
 		/** One statement, or a {@code case}'s or {@code if}'s head with its first statement. */
 		STATEMENT,
 		/** One method, constructor, initializer or field. */

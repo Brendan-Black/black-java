@@ -25,6 +25,8 @@ import org.eclipse.jdt.core.dom.SimpleName;
 final class MagicStringsPolicy {
 	/** How close a value's literals must all be to be read together, narrowest first. */
 	enum Proximity {
+		/** Nothing is close: every repeat is reported. */
+		NONE("none"),
 		/**
 		 * One statement, or a branch's head with what it leads to: a {@code case}'s labels with its first statement, an
 		 * {@code if}'s condition with its first statement. Line breaks don't matter.
@@ -48,7 +50,7 @@ final class MagicStringsPolicy {
 				if (p.word.equals(word)) { return p; }
 			}
 			throw new IllegalArgumentException("a javaStandards magic-strings proximity is \"" + word
-				+ "\"; expected \"statement\", \"method\", \"file\", \"package\" or \"module\"");
+				+ "\"; expected \"none\", \"statement\", \"method\", \"file\", \"package\" or \"module\"");
 		}
 	}
 

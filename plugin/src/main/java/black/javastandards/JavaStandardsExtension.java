@@ -15,9 +15,9 @@ import org.gradle.api.provider.Property;
  *     honorSuppressWarnings = false // also count what @SuppressWarnings hides (default true)
  *     magicStrings = "warning"     // repeated string literals: "error" (default), "warning", "ignore"
  *     magicStringsByPackage = mapOf("com.example.legacy" to "ignore") // the same, for a package and those below it
- *     magicStringsElsewhere = "warning" // a value that is never an argument: "ignore" (default), "warning", "error"
+ *     magicStringsElsewhere = "warning" // a value that is never an argument: "error" (default), "warning", "ignore"
  *     magicStringsWhitespace = true // also check values with whitespace in them (default false)
- *     magicStringsProximity = "file" // how close literals must be to be read together: "statement" (default), "method", "file", "package", "module"
+ *     magicStringsProximity = "file" // how close literals may sit and go unreported: "none" (default), "statement", "method", "file", "package", "module"
  *     formatterProfile = file("my-formatter.xml") // instead of the bundled java-formatter.xml
  *     warningSettings = file("my-warnings.prefs") // instead of the bundled java-warnings.prefs
  * }
@@ -51,8 +51,8 @@ public abstract class JavaStandardsExtension {
 
 	/**
 	 * The most severe a repeated value can be when none of its literals is an argument to a method or constructor (when they
-	 * are all assignments, returns, {@code case} labels and the like): "ignore" (the default), "warning" or "error". Arguments
-	 * are the pattern the check is for; the rest is reported only if a project asks.
+	 * are all assignments, returns, {@code case} labels and the like): "error" (the default), "warning" or "ignore". A value
+	 * written twice is an error whether or not it is passed on.
 	 */
 	public abstract Property<String> getMagicStringsElsewhere();
 
@@ -63,8 +63,8 @@ public abstract class JavaStandardsExtension {
 	public abstract Property<Boolean> getMagicStringsWhitespace();
 
 	/**
-	 * How close a value's literals must all be to be read together, and so not reported, however many are arguments:
-	 * "statement" (the default: one statement, or a case's or if's head with its first statement), "method", "file",
+	 * How close a value's literals may all sit and go unreported, however many are arguments: "none" (the default: every
+	 * repeat is reported), "statement" (one statement, or a case's or if's head with its first statement), "method", "file",
 	 * "package", or "module" (the whole source set), which reports nothing. A constant among them is never close. A
 	 * package-info.java or module-info.java can set this and the other magic-string settings with {@code @black.MagicStrings}.
 	 */

@@ -28,8 +28,9 @@ Java. Settings are in the [README](../../../README.md#magic-strings).
 - **Project:** a Gradle project's main source set.
 - **Argument:** includes `List.of("a")` and the receiver of `"SHIPPED".equals(s)`.
 - **Definition:** a `static final` field, or an enum constant's arguments.
-- **Wrapping:** `Optional.of("hard")`, or a record built from the literal.
-- **Proximity:** a method, a file, a package, or the whole Java module, which reports nothing.
+- **Built from the literal:** `Optional.of("hard")`, or a record.
+- **Proximity:** none (the default), a statement, a method, a file, a package, or the whole Java module, which reports
+  nothing.
 - **Module,** for whether a literal can name a constant: the package.
 - **Generated:** files under the build directory, annotated `@Generated`, or opening with a comment line that starts
   `@generated`.

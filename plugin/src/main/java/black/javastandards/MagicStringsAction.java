@@ -69,19 +69,14 @@ import org.gradle.workers.WorkParameters;
  * only when identical, after escapes are resolved: {@code "orderId"} matches {@code "orderId"}, not
  * {@code "orderid"} or {@code "orderIdList"}.
  * <p>
- * Each literal is one of three kinds. An <em>argument</em> is passed straight to a method or constructor
- * ({@code get("id")}, {@code List.of("a")}, and the receiver of {@code "SHIPPED".equals(s)}): the biggest offenders, so a
- * value with an argument among its literals gets its package's full level. A <em>definition</em> is in a {@code static final}
- * field (an interface's included) or an enum constant's arguments: a value whose literals are all definitions is two names
- * that happen to share a spelling, and isn't reported. Everything else ({@code case} labels, assignments, returns) is
- * <em>elsewhere</em>, and a value seen only there and in definitions is capped at the {@code magicStringsElsewhere} level. A
- * literal a value is built from ({@code Optional.of("x")}, a record of the source set) is an argument only if that value is
- * passed on.
- * <p>
- * Two shapes are eased. A value whose literals are all in one method (or other member), with at most one of them an
- * argument, isn't reported: a parser's {@code startsWith("--x=")} beside its {@code case "--x="}. And a value passed as
- * an argument just once, with every other use in other files (or in that same method), is at most a warning: most likely
- * another concept that shares the spelling.
+ * A value written twice is an error, wherever the two literals sit. Each literal is one of three kinds, which matter to
+ * the settings. An <em>argument</em> is passed straight to a method or constructor ({@code get("id")}, {@code List.of("a")},
+ * and the receiver of {@code "SHIPPED".equals(s)}): a value with an argument among its literals gets its package's
+ * {@code magicStrings} level. A <em>definition</em> is in a {@code static final} field (an interface's included) or an enum
+ * constant's arguments: a value whose literals are all definitions is two names that happen to share a spelling, and isn't
+ * reported. Everything else ({@code case} labels, assignments, returns, and a literal a value is built from, such as
+ * {@code Optional.of("x")} or a record of the source set) is <em>elsewhere</em>, and a value with no argument gets the
+ * {@code magicStringsElsewhere} level.
  * <p>
  * Not counted at all: values with no letter ({@code ", "}, {@code "\n"}, {@code "404"}); values with whitespace in them, unless
  * {@code magicStringsWhitespace} is true; messages (the arguments of logging and
@@ -125,7 +120,7 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 	/** Methods whose arguments are messages for people. */
 	static final Set<String> MESSAGE_METHODS = Set.of("trace", "debug", "info", "warn", "warning", "error", "fatal", "log", "lifecycle",
 		"quiet", "print", "println", "printf", "format", "formatted", "requireNonNull");
-	/** {@code Optional}'s factories, which wrap a value: {@code Optional.of("x")} passes "x" on only if it is passed on. */
+	/** {@code Optional}'s factories, which build a value: the literal in {@code Optional.of("x")} is no argument. */
 	private static final Set<String> OPTIONAL_FACTORIES = Set.of("of", "ofNullable");
 	private static final String OPTIONAL = "Optional";
 
@@ -171,12 +166,12 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 	}
 
 	/**
-	 * Whether a constant among these literals can be named where one of them is passed as an argument. A private constant
+	 * Whether a constant among these literals can be named where one of them is written. A private constant
 	 * of another class is no name the literal could use, so it says nothing about whether the two are one concept. An
 	 * enum constant's argument has no reach: it isn't a name for the string.
 	 */
 	private static boolean usableConstant(List<Place> places) {
-		List<Place> passed = places.stream().filter(place -> place.kind() == Kind.ARGUMENT).toList();
+		List<Place> passed = places.stream().filter(place -> place.kind() != Kind.DEFINITION).toList();
 		return places.stream().filter(place -> place.kind() == Kind.DEFINITION && place.reach() != null).anyMatch(d -> switch (d.reach()) {
 			case ANYWHERE -> true;
 			case PACKAGE -> passed.stream().anyMatch(a -> a.pkg().equals(d.pkg()));
@@ -184,13 +179,11 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 		});
 	}
 
-	/** How many methods a value never passed as an argument must be in to be the same check written again. */
-	private static final int SPREAD = 3;
-
 	/** Whether a value's literals are all this close. */
 	private static boolean close(List<Place> places, MagicStringsPolicy.Proximity proximity) {
 		Place first = places.get(0);
 		return switch (proximity) {
+			case NONE -> false;
 			case STATEMENT -> places.stream().allMatch(place -> place.unit() == first.unit());
 			case METHOD -> places.stream().allMatch(place -> place.scope() == first.scope());
 			case FILE -> places.stream().allMatch(place -> place.file().equals(first.file()));
@@ -237,39 +230,17 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				if (places.size() < 2 || places.stream().allMatch(place -> place.kind() == Kind.DEFINITION)) { return; }
 				List<Place> passed = places.stream().filter(place -> place.kind() == Kind.ARGUMENT).toList();
 				long arguments = passed.size();
-				// One method's literals, with at most one of them an argument, are read together and change together: a
-				// parser's startsWith("--x=") beside its case "--x=". Two arguments (declaring a flag and looking it up) are the
-				// typo the rule is for.
-				// A constant the literals could name is always the full level: a constant plus a literal should use the constant.
-				// One they couldn't (a private one of another class) says nothing about them, so it plays no part in what follows.
+				// A constant a literal could name counts as the value's other use, and is never close: the name exists, so the
+				// literal should use it. One no literal could name (a private one of another class) plays no part.
 				boolean defined = usableConstant(places);
 				List<Place> literals = places.stream().filter(place -> place.kind() != Kind.DEFINITION).toList();
 				if (!defined && literals.size() < 2) { return; }
-				if (arguments <= 1 && !defined && literals.stream().allMatch(place -> place.scope() == literals.get(0).scope())) { return; }
-				// Literals this close, however many are arguments, are read together: a case's startsWith("--x") and its
-				// value("--x"). Not with a constant among them: a constant plus a literal should use the constant. A value across
-				// packages takes the narrowest proximity and the most severe levels among them.
+				// A package may set a proximity: literals all within it aren't reported. A value across packages takes the
+				// narrowest proximity and the most severe levels among them.
 				var proximity = places.stream().map(place -> place.settings().proximity()).min(Enum::compareTo).orElseThrow();
 				if (!defined && close(literals, proximity)) { return; }
-				Level asArgument = places.stream().map(place -> place.settings().level()).min(Enum::compareTo).orElseThrow();
-				Level level = asArgument;
-				if (arguments == 0) {
-					level = places.stream().map(place -> place.settings().elsewhere()).min(Enum::compareTo).orElseThrow();
-					// Compared or matched in several methods, a value is the same check written again each time (four parsers of
-					// "true", "yes", "on"): at least a warning, though it is never passed on.
-					long methods = places.stream().filter(place -> place.kind() != Kind.DEFINITION).mapToInt(Place::scope).distinct().count();
-					Level spread = Level.leastSevere(asArgument, Level.WARNING);
-					if (methods >= SPREAD && spread.compareTo(level) < 0) { level = spread; }
-				}
-				// One argument, every other use in another file or in its own method: most likely another concept that shares
-				// the spelling, such as one flag in two commands' parsers, so at most a warning. Never with a constant among them:
-				// the name exists, so the literal is wrong wherever it is.
-				if (arguments == 1 && !usableConstant(places)) {
-					Place argument = passed.get(0);
-					if (places.stream().allMatch(place -> place.scope() == argument.scope() || !place.file().equals(argument.file()))) {
-						level = Level.leastSevere(level, Level.WARNING);
-					}
-				}
+				Level level = arguments > 0 ? places.stream().map(place -> place.settings().level()).min(Enum::compareTo).orElseThrow()
+					: places.stream().map(place -> place.settings().elsewhere()).min(Enum::compareTo).orElseThrow();
 				if (level == Level.IGNORE) { return; }
 				report.add(level.word + "\tmagic string " + quote(value) + " appears " + places.size() + " times, " + arguments
 					+ " as an argument: name it (black style guide, conventions/values/magic-strings.md)");
@@ -360,7 +331,7 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				if (receiver != null && !isLiteral(receiver)) { receiver.accept(this); }
 				return false;
 			}
-			// A value wrapped (Optional.of("x")) is only passed on if the wrapper is, which markArgument sees from outside.
+			// A value wrapped (Optional.of("x")) is built, not passed: its literal is no argument.
 			if (isWrapper(node)) { return true; }
 			if (COMPARISONS.contains(method) && node.getExpression() != null) { markArgument(node.getExpression()); }
 			int arity = node.arguments().size();
@@ -574,16 +545,13 @@ public abstract class MagicStringsAction implements WorkAction<MagicStringsActio
 				markArgument(array.getInitializer());
 			} else if (e instanceof ArrayInitializer init) {
 				markArguments(init.expressions());
-			} else if (isWrapper(e)) {
-				// new R("x") or Optional.of("x") passed on is still passed on.
-				markArguments(e instanceof MethodInvocation call ? call.arguments() : ((ClassInstanceCreation) e).arguments());
 			}
 		}
 
 		/**
 		 * Whether an expression builds a value rather than doing something with one: a record of the source set's
-		 * ({@code new Mode("hard")}), or {@code Optional.of} and {@code ofNullable}. A literal it wraps is passed on only if
-		 * the value it builds is, so {@code return Optional.of("hard")} is no argument.
+		 * ({@code new Mode("hard")}), or {@code Optional.of} and {@code ofNullable}. A literal it wraps is no argument, whether
+		 * or not the value it builds is passed on.
 		 */
 		private boolean isWrapper(Expression e) {
 			if (e instanceof ClassInstanceCreation creation) {

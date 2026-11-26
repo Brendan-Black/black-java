@@ -34,7 +34,7 @@ file here sits at the same path as the rule it adds to; read it alongside that r
 | Nulls | NullAway (an Error Prone plugin) |
 | Swallowed and overly broad catches | Error Prone; PMD's `EmptyCatchBlock` and `AvoidCatchingGenericException` |
 | Exhaustive handling of outcomes | The compiler: a `switch` over a sealed type or enum |
-| Name magic strings | `checkMagicStrings`, in the Gradle plugin: a string value repeated in the main source set is an error if it is ever passed as an argument, and not reported otherwise; `javaStandards.magicStrings*`, a `package-info.java` or `module-info.java` (`@black.MagicStrings`) change that ([README](../README.md#magic-strings)) |
+| Name magic strings | `checkMagicStrings`, in the Gradle plugin: a string value written twice in the main source set is an error; `javaStandards.magicStrings*`, a `package-info.java` or `module-info.java` (`@black.MagicStrings`) change that ([README](../README.md#magic-strings)) |
 | Immutability | Error Prone's `@Immutable` check |
 | Field injection, `Thread.sleep` in tests, package rules | ArchUnit |
 | Injection holes | SpotBugs with Find Security Bugs; template engines that escape by default |
