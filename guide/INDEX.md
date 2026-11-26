@@ -20,6 +20,7 @@ file here sits at the same path as the rule it adds to; read it alongside that r
 | [conventions/errors/expected-failures](conventions/errors/expected-failures.md) | sealed interface and an exhaustive `switch` |
 | [conventions/errors/messages-for-callers](conventions/errors/messages-for-callers.md) | `ErrorCode` enum |
 | [philosophy/every-bug-a-test](philosophy/every-bug-a-test.md) | `@ParameterizedTest` |
+| [philosophy/package-oriented](philosophy/package-oriented.md) | a repository per unit, built by JitPack from each tag; `api` for what your public types use |
 | [correctness/testing/self-contained](correctness/testing/self-contained.md) | `Thread.sleep`, Testcontainers |
 | [correctness/values/monotonic-time](correctness/values/monotonic-time.md) | `System.nanoTime()` behind the clock interface |
 | [conventions/testing/pseudos](conventions/testing/pseudos.md) | `PseudoHttpGateway` |
