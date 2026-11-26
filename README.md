@@ -137,7 +137,7 @@ from there):
 ```kotlin
 plugins {
     java // or application, java-library
-    id("black.java-standards") version "1.3.6"
+    id("black.java-standards") version "1.4.0"
 }
 ```
 
@@ -285,8 +285,8 @@ Without the plugin, add it as a processor:
 
 ```kotlin
 dependencies {
-    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.6")
-    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.3.6")
+    annotationProcessor("com.github.Brendan-Black.black-java:checks:1.4.0")
+    testAnnotationProcessor("com.github.Brendan-Black.black-java:checks:1.4.0")
 }
 ```
 
@@ -301,7 +301,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.Brendan-Black.black-java:lib:1.3.6")
+    implementation("com.github.Brendan-Black.black-java:lib:1.4.0")
 }
 ```
 
